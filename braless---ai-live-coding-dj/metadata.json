@@ -1,0 +1,5 @@
+{
+  "name": "Braless - AI Live Coding DJ",
+  "description": "A browser-based live-coding environment where humans and AI agents co-create music patterns in real-time using Strudel-inspired syntax.",
+  "requestFramePermissions": []
+}
