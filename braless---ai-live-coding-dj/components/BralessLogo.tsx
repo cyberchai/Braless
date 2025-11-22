@@ -12,7 +12,7 @@ const BralessLogo: React.FC = () => {
       <svg
         width="100%"
         height="60"
-        viewBox="0 0 600 200"
+        viewBox="0 0 700 200"
         xmlns="http://www.w3.org/2000/svg"
         className="braless-svg"
         preserveAspectRatio="xMidYMid meet"
@@ -56,7 +56,7 @@ const BralessLogo: React.FC = () => {
             <rect
               key={i}
               className="equalizer-bar"
-              x={10 + i * 25} // Spread across the text area
+              x={50 + i * 25} // Spread across the text area with more left padding
               y="200" // Start at bottom
               width="22" // Slight gap between bars (25 stride)
               height="0" // Start height
@@ -96,6 +96,8 @@ const BralessLogo: React.FC = () => {
           transition: transform 0.3s ease;
           cursor: pointer;
           width: 100%;
+          overflow: visible;
+          padding: 0 8px;
         }
 
         .logo-container:hover {
@@ -103,22 +105,25 @@ const BralessLogo: React.FC = () => {
         }
 
         .braless-svg {
-          width: 100%;
+          width: 95%;
           height: auto;
-          max-height: 60px;
+          max-height: 80px;
+          transform: scale(1.2);
+          transform-origin: center;
+          margin: 0 auto;
         }
 
         .logo-text {
           font-family: 'Poppins', sans-serif;
           font-weight: 800;
-          font-size: 100px;
+          font-size: 130px;
           fill: white;
         }
 
         .logo-stroke {
           font-family: 'Poppins', sans-serif;
           font-weight: 800;
-          font-size: 100px;
+          font-size: 130px;
           fill: none;
           stroke: rgba(255, 255, 255, 0.5);
           stroke-width: 1px;

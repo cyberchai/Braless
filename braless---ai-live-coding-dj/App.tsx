@@ -4,6 +4,7 @@ import Visualizer from './components/Visualizer';
 import AgentPanel from './components/AgentPanel';
 import ChatInterface from './components/ChatInterface';
 import BralessLogo from './components/BralessLogo';
+import DancingBanana from './components/DancingBanana';
 import { INITIAL_CODE, AGENTS, PRESETS } from './constants';
 import { Agent, LogEntry, AudioStatus } from './types';
 import { geminiService } from './services/geminiService';
@@ -214,7 +215,14 @@ const App: React.FC = () => {
                </button>
              )}
           </div>
-          <Visualizer isPlaying={status === AudioStatus.PLAYING} />
+          <div className="grid grid-cols-3 gap-4 h-48">
+            <div className="col-span-2">
+              <Visualizer isPlaying={status === AudioStatus.PLAYING} />
+            </div>
+            <div className="bg-zinc-900/50 rounded-lg border border-zinc-800 flex items-center justify-center shadow-[0_0_25px_rgba(255,215,0,0.2)]">
+              <DancingBanana isPlaying={status === AudioStatus.PLAYING} />
+            </div>
+          </div>
         </div>
 
         {/* Workspace */}
