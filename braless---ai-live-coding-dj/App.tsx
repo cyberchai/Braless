@@ -97,10 +97,10 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const handleRun = useCallback(() => {
+  const handleRun = useCallback(async () => {
     try {
       setStatus(AudioStatus.PLAYING);
-      runCode(code);
+      await runCode(code);
       addLog('User', 'Updated live code', 'success');
     } catch (e) {
       addLog('System', 'Error running code', 'error');
@@ -121,7 +121,7 @@ const App: React.FC = () => {
       handleImmediateCodeChange(newCode);
       addLog('AI', `${agent.name} modified the pattern`, 'code');
       // Auto-run the new code for live coding feel
-      runCode(newCode);
+      await runCode(newCode);
       if (status === AudioStatus.STOPPED) setStatus(AudioStatus.PLAYING);
     } catch (e) {
       addLog('System', `Agent ${agent.name} failed to respond`, 'error');
@@ -137,7 +137,7 @@ const App: React.FC = () => {
       const newCode = await geminiService.modifyCode(code, message);
       handleImmediateCodeChange(newCode);
       addLog('AI', 'Applied requested changes', 'code');
-      runCode(newCode);
+      await runCode(newCode);
       if (status === AudioStatus.STOPPED) setStatus(AudioStatus.PLAYING);
     } catch (e) {
       addLog('System', 'Failed to process request', 'error');
