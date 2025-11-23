@@ -630,5 +630,61 @@ Translate the request into actual code modifications. Return ONLY the modified c
       console.error("Gemini translateMusicRequest error:", error);
       throw error;
     }
+  },
+
+  /**
+   * Generate a short explanation of how code changes affect the song fundamentally
+   * Returns 1-2 sentences explaining the musical impact
+   */
+  async explainCodeChange(oldCode: string, newCode: string, agentName?: string): Promise<string> {
+    try {
+      const systemInstruction = `
+You are a music analysis assistant for "Braless". Your task is to explain how code changes fundamentally affect the song.
+
+Rules:
+1. Be concise - exactly 1-2 sentences
+2. Focus on the FUNDAMENTAL musical change (rhythm, harmony, texture, energy, etc.)
+3. Use clear, accessible language
+4. Explain the musical impact, not just what code changed
+5. Examples:
+   - "Adds a syncopated bassline that creates rhythmic tension and drives the groove forward."
+   - "Introduces a reverb-drenched pad that expands the sonic space and adds atmospheric depth."
+   - "Shifts the tempo with .fast() creating a more energetic, driving feel throughout the pattern."
+`;
+      
+      const prompt = `
+        Old Code:
+        ${oldCode}
+        
+        New Code:
+        ${newCode}
+        
+        ${agentName ? `This change was made by: ${agentName}` : ''}
+        
+        Explain in 1-2 sentences how this change fundamentally affects the song. Focus on the musical impact (rhythm, harmony, texture, energy, mood, etc.), not technical details.
+      `;
+
+      const response: GenerateContentResponse = await ai.models.generateContent({
+        model: MODEL_FAST,
+        contents: prompt,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+        },
+      });
+
+      let explanation = response.text?.trim() || "This change modifies the musical pattern.";
+      
+      // Ensure it's 1-2 sentences
+      const sentences = explanation.split(/[.!?]+/).filter(s => s.trim().length > 0);
+      if (sentences.length > 2) {
+        explanation = sentences.slice(0, 2).join('. ') + '.';
+      }
+      
+      return explanation;
+    } catch (error) {
+      console.error("Gemini explainCodeChange error:", error);
+      return "This change modifies the musical pattern.";
+    }
   }
 };

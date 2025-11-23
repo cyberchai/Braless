@@ -7,7 +7,7 @@ import BralessLogo from './components/BralessLogo';
 import DancingBanana from './components/DancingBanana';
 import AuthButton from './components/AuthButton';
 import { INITIAL_CODE, AGENTS, PRESETS } from './constants';
-import { Agent, LogEntry, AudioStatus } from './types';
+import { Agent, LogEntry, AudioStatus, AgentChange } from './types';
 import { geminiService } from './services/geminiService';
 import { runCode, stopAudio } from './services/audioEngine';
 import { signInWithGoogle, logout, onAuthChange } from './services/firebase';
@@ -24,6 +24,7 @@ import {
   deletePreset,
   SourceInfo 
 } from './services/firestoreService';
+import { computeDiff } from './utils/diff';
 
 const App: React.FC = () => {
   // History State Management
@@ -47,6 +48,8 @@ const App: React.FC = () => {
   const [savedPresets, setSavedPresets] = useState<Array<{ id: string; name: string; code: string }>>([]);
   const [showSavePresetModal, setShowSavePresetModal] = useState(false);
   const [presetName, setPresetName] = useState('');
+  const [agentChanges, setAgentChanges] = useState<AgentChange[]>([]);
+  const [showAgentChanges, setShowAgentChanges] = useState(true);
   
   const debounceRef = useRef<number | null>(null);
 
@@ -168,6 +171,40 @@ const App: React.FC = () => {
     commitToHistory(newCode);
   };
 
+  // Track agent change and generate explanation
+  const trackAgentChange = async (oldCode: string, newCode: string, agentName?: string) => {
+    // Only track if there's an actual change
+    if (oldCode === newCode) return;
+
+    try {
+      // Generate explanation asynchronously
+      const explanation = await geminiService.explainCodeChange(oldCode, newCode, agentName);
+      
+      const change: AgentChange = {
+        id: Math.random().toString(36).substr(2, 9),
+        oldCode,
+        newCode,
+        explanation,
+        agentName,
+        timestamp: new Date()
+      };
+      
+      setAgentChanges(prev => [change, ...prev]);
+    } catch (error) {
+      console.error('Failed to generate explanation for agent change:', error);
+      // Still track the change even if explanation fails
+      const change: AgentChange = {
+        id: Math.random().toString(36).substr(2, 9),
+        oldCode,
+        newCode,
+        explanation: 'This change modifies the musical pattern.',
+        agentName,
+        timestamp: new Date()
+      };
+      setAgentChanges(prev => [change, ...prev]);
+    }
+  };
+
   const handleUndo = useCallback(() => {
     if (indexRef.current > 0) {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
@@ -276,6 +313,8 @@ const App: React.FC = () => {
             const actualCode = parts[1];
             // Log the commentary to session log (not in code)
             addLog('AI', `${agent.name}: ${commentary}`, 'info');
+            // Track agent change before updating code
+            await trackAgentChange(code, actualCode, agent.name);
             handleImmediateCodeChange(actualCode);
             addLog('AI', `${agent.name} modified the pattern`, 'code');
             await saveAndRunCode(actualCode, getAgentSource(agent));
@@ -289,6 +328,8 @@ const App: React.FC = () => {
             const actualCode = parts[1];
             addLog('System', `🎵 ${agent.name} made significant rhythm changes - Music Theory Agent validated`, 'info');
             addLog('AI', `Music Theory Agent (auto-triggered): ${analysis}`, 'info');
+            // Track agent change before updating code
+            await trackAgentChange(code, actualCode, agent.name);
             handleImmediateCodeChange(actualCode);
             addLog('AI', `${agent.name} modified the pattern`, 'code');
             await saveAndRunCode(actualCode, getAgentSource(agent));
@@ -303,6 +344,8 @@ const App: React.FC = () => {
             warnings.forEach((warning: string) => {
               addLog('System', `⚠️ ${agent.name}: ${warning}`, 'error');
             });
+            // Track agent change before updating code
+            await trackAgentChange(code, actualCode, agent.name);
             handleImmediateCodeChange(actualCode);
             addLog('AI', `${agent.name} modified the pattern (with warnings)`, 'code');
             await saveAndRunCode(actualCode, getAgentSource(agent));
@@ -310,6 +353,8 @@ const App: React.FC = () => {
           }
         } else {
           // Normal code application
+          // Track agent change before updating code
+          await trackAgentChange(code, newCode, agent.name);
           handleImmediateCodeChange(newCode);
           addLog('AI', `${agent.name} modified the pattern`, 'code');
           await saveAndRunCode(newCode, getAgentSource(agent));
@@ -350,6 +395,8 @@ const App: React.FC = () => {
         addLog('AI', 'Applied requested changes', 'code');
       }
       
+      // Track change for chat requests (but don't show as agent change - it's user-initiated)
+      // We could optionally track these too, but for now only track agent changes
       handleImmediateCodeChange(newCode);
       await saveAndRunCode(newCode, getTextSource(message));
       if (status === AudioStatus.STOPPED) setStatus(AudioStatus.PLAYING);
@@ -619,6 +666,9 @@ const App: React.FC = () => {
                 onRedo={handleRedo}
                 canUndo={historyIndex > 0}
                 canRedo={historyIndex < history.length - 1}
+                agentChanges={agentChanges}
+                onToggleChanges={() => setShowAgentChanges(!showAgentChanges)}
+                showChanges={showAgentChanges}
               />
             </div>
 

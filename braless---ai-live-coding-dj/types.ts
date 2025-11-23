@@ -24,3 +24,12 @@ export interface CodeSnippet {
   name: string;
   code: string;
 }
+
+export interface AgentChange {
+  id: string;
+  oldCode: string;
+  newCode: string;
+  explanation: string;
+  agentName?: string;
+  timestamp: Date;
+}
