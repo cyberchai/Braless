@@ -115,14 +115,83 @@ const App: React.FC = () => {
 
   const handleAgentTrigger = async (agent: Agent) => {
     setIsProcessing(true);
-    addLog('System', `${agent.name} is thinking...`, 'info');
+    // Special message for Mr. Frat
+    if (agent.role === 'Vibes Maximizer') {
+      addLog('System', `${agent.name} is maximizing the vibes...`, 'info');
+    } else {
+      addLog('System', `${agent.name} is thinking...`, 'info');
+    }
     try {
-      const newCode = await geminiService.agentAction(agent.role, code);
-      handleImmediateCodeChange(newCode);
-      addLog('AI', `${agent.name} modified the pattern`, 'code');
-      // Auto-run the new code for live coding feel
-      await runCode(newCode);
-      if (status === AudioStatus.STOPPED) setStatus(AudioStatus.PLAYING);
+      // Music Theory Agent analyzes and logs, doesn't modify code
+      if (agent.role === 'Music Theorist') {
+        const analysis = await geminiService.analyzeMusicTheory(code);
+        addLog('AI', `${agent.name}: ${analysis}`, 'info');
+      } else {
+        // Other agents modify code
+        let newCode: string;
+        try {
+          newCode = await geminiService.agentAction(agent.role, code);
+        } catch (e: any) {
+          // Check if this is a harmony clash detection
+          if (e?.message?.startsWith('HARMONY_CLASH_DETECTED:')) {
+            const analysis = e.message.replace('HARMONY_CLASH_DETECTED:', '');
+            addLog('System', `⚠️ ${agent.name} detected a potential harmony clash`, 'error');
+            addLog('AI', `Music Theory Agent (auto-triggered): ${analysis}`, 'info');
+            addLog('System', `${agent.name} did not apply changes to avoid clash`, 'info');
+            return; // Exit early, don't apply code
+          } else {
+            throw e; // Re-throw other errors
+          }
+        }
+        
+        // Check for Mr. Frat commentary (frat energy commentary separate from code)
+        if (newCode.startsWith('FRAT_COMMENTARY:')) {
+          const parts = newCode.split(':CODE:');
+          if (parts.length === 2) {
+            const commentary = parts[0].replace('FRAT_COMMENTARY:', '');
+            const actualCode = parts[1];
+            // Log the commentary to session log (not in code)
+            addLog('AI', `${agent.name}: ${commentary}`, 'info');
+            handleImmediateCodeChange(actualCode);
+            addLog('AI', `${agent.name} modified the pattern`, 'code');
+            await runCode(actualCode);
+            if (status === AudioStatus.STOPPED) setStatus(AudioStatus.PLAYING);
+          }
+        } else if (newCode.startsWith('RHYTHM_CHANGE_VALIDATED:')) {
+          // Check for rhythm change validation (Music Theory Agent was consulted)
+          const parts = newCode.split(':CODE:');
+          if (parts.length === 2) {
+            const analysis = parts[0].replace('RHYTHM_CHANGE_VALIDATED:', '');
+            const actualCode = parts[1];
+            addLog('System', `🎵 ${agent.name} made significant rhythm changes - Music Theory Agent validated`, 'info');
+            addLog('AI', `Music Theory Agent (auto-triggered): ${analysis}`, 'info');
+            handleImmediateCodeChange(actualCode);
+            addLog('AI', `${agent.name} modified the pattern`, 'code');
+            await runCode(actualCode);
+            if (status === AudioStatus.STOPPED) setStatus(AudioStatus.PLAYING);
+          }
+        } else if (newCode.startsWith('FX_WARNINGS:')) {
+          // Check for FX warnings in the returned code (not an error, just a warning)
+          const parts = newCode.split(':CODE:');
+          if (parts.length === 2) {
+            const warnings = parts[0].replace('FX_WARNINGS:', '').split(' | ');
+            const actualCode = parts[1];
+            warnings.forEach((warning: string) => {
+              addLog('System', `⚠️ ${agent.name}: ${warning}`, 'error');
+            });
+            handleImmediateCodeChange(actualCode);
+            addLog('AI', `${agent.name} modified the pattern (with warnings)`, 'code');
+            await runCode(actualCode);
+            if (status === AudioStatus.STOPPED) setStatus(AudioStatus.PLAYING);
+          }
+        } else {
+          // Normal code application
+          handleImmediateCodeChange(newCode);
+          addLog('AI', `${agent.name} modified the pattern`, 'code');
+          await runCode(newCode);
+          if (status === AudioStatus.STOPPED) setStatus(AudioStatus.PLAYING);
+        }
+      }
     } catch (e) {
       addLog('System', `Agent ${agent.name} failed to respond`, 'error');
     } finally {
@@ -134,9 +203,27 @@ const App: React.FC = () => {
     setIsProcessing(true);
     addLog('User', message, 'info');
     try {
-      const newCode = await geminiService.modifyCode(code, message);
+      // Detect if this is a music theory request (creative/emotional language)
+      const musicTheoryKeywords = [
+        'sick transition', 'funky', 'surprise', 'resolve', 'tension', 'build-up', 'buildup',
+        'drop', 'breakdown', 'break down', 'transition', 'cadence', 'resolve', 'modulate',
+        'harmonic', 'chord progression', 'key change', 'scale'
+      ];
+      const lowerMessage = message.toLowerCase();
+      const isMusicTheoryRequest = musicTheoryKeywords.some(keyword => lowerMessage.includes(keyword));
+      
+      let newCode: string;
+      if (isMusicTheoryRequest) {
+        // Use Music Theory Agent to translate creative requests
+        newCode = await geminiService.translateMusicRequest(code, message);
+        addLog('AI', 'Music Theory Agent translated your request', 'code');
+      } else {
+        // Use standard modifyCode for regular requests
+        newCode = await geminiService.modifyCode(code, message);
+        addLog('AI', 'Applied requested changes', 'code');
+      }
+      
       handleImmediateCodeChange(newCode);
-      addLog('AI', 'Applied requested changes', 'code');
       await runCode(newCode);
       if (status === AudioStatus.STOPPED) setStatus(AudioStatus.PLAYING);
     } catch (e) {
@@ -344,8 +431,10 @@ const App: React.FC = () => {
                     <ul className="list-disc list-inside mt-2 space-y-1">
                        <li>"Make the bassline faster"</li>
                        <li>"Add a dreamy reverb pad"</li>
-                       <li>"Drop the beat"</li>
-                       <li>"Switch to a minor key"</li>
+                       <li>"Add a sick transition"</li>
+                       <li>"Resolve this tension"</li>
+                       <li>"Add a funky little surprise"</li>
+                       <li>"Add a build-up"</li>
                     </ul>
                  </div>
               </div>

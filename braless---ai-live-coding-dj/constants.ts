@@ -24,6 +24,20 @@ export const AGENTS: Agent[] = [
     description: 'Applies distortion, time-stretching, and randomization.',
     avatarColor: 'rose',
   },
+  {
+    id: 'music-theory',
+    name: 'Music Theory Agent',
+    role: 'Music Theorist',
+    description: 'Detects key, evaluates harmony, validates rhythm. Old academic energy but unhinged underneath.',
+    avatarColor: 'amber',
+  },
+  {
+    id: 'mixer-frat',
+    name: 'Mixer / Mr. Frat',
+    role: 'Vibes Maximizer',
+    description: 'DJ mixing engineer. Adjusts volume, panning, brightness. Adds transitions, drops, builds. Absolutely frat energy.',
+    avatarColor: 'cyan',
+  },
 ];
 
 export const PRESETS: CodeSnippet[] = [

@@ -83,7 +83,7 @@ const BralessLogo: React.FC = () => {
       </svg>
       
       <div className={`subtitle ${isHovered ? 'visible' : ''}`}>
-        Social DJing
+        AGENTIC DJS BEFORE GTA 6
       </div>
 
       <style>{`
@@ -111,6 +111,7 @@ const BralessLogo: React.FC = () => {
           transform: scale(1.2);
           transform-origin: center;
           margin: 0 auto;
+          filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.4)) drop-shadow(0 0 12px rgba(139, 92, 246, 0.3));
         }
 
         .logo-text {
