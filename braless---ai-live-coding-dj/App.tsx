@@ -219,7 +219,7 @@ const App: React.FC = () => {
             <div className="col-span-2">
               <Visualizer isPlaying={status === AudioStatus.PLAYING} />
             </div>
-            <div className="bg-zinc-900/50 rounded-lg border border-zinc-800 flex items-center justify-center shadow-[0_0_25px_rgba(255,215,0,0.2)]">
+            <div className="bg-zinc-900/50 rounded-lg border border-zinc-800 flex items-center justify-center shadow-[0_0_25px_rgba(255,215,0,0.2)] overflow-hidden">
               <DancingBanana isPlaying={status === AudioStatus.PLAYING} />
             </div>
           </div>
