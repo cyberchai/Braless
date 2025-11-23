@@ -9,11 +9,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react-dom": "^19.2.0",
     "@google/genai": "^1.30.0",
-    "react": "^19.2.0",
+    "@strudel/core": "^1.2.5",
+    "@strudel/repl": "^1.2.7",
+    "@strudel/soundfonts": "^1.2.6",
+    "@strudel/web": "^1.2.6",
     "d3": "^7.9.0",
-    "@strudel/web": "^1.2.6"
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

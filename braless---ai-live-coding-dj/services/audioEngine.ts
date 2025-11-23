@@ -3,7 +3,12 @@
  * Replaces the basic simulation with full Strudel/TidalCycles support.
  */
 
-import { initStrudel, evaluate, hush } from '@strudel/web';
+import { initStrudel, evaluate, hush, rand, samples } from '@strudel/web';
+import { registerSoundfonts } from '@strudel/soundfonts';
+import soundfonts from '@strudel/soundfonts/gm.mjs';
+
+// Define global helper for AI-generated code
+(window as any).R = (min: number, max: number) => rand.range(min, max);
 
 let isInitialized = false;
 let isPlaying = false;
@@ -16,15 +21,31 @@ export const initAudio = async () => {
   if (isInitialized) {
     return;
   }
-  
+
   if (initPromise) {
     await initPromise;
     return;
   }
-  
+
   initPromise = (async () => {
     try {
       await initStrudel();
+
+      // Load all default samples from dough-samples + crate
+      const ds = "https://raw.githubusercontent.com/felixroos/dough-samples/main";
+      await Promise.all([
+        samples(`${ds}/tidal-drum-machines.json`),
+        samples(`${ds}/piano.json`),
+        samples(`${ds}/Dirt-Samples.json`),
+        samples(`${ds}/EmuSP12.json`),
+        samples(`${ds}/vcsl.json`),
+        samples(`${ds}/mridangam.json`),
+        samples('https://raw.githubusercontent.com/eddyflux/crate/main/strudel.json')
+      ]);
+
+      // Register GM soundfonts
+      registerSoundfonts(soundfonts);
+
       isInitialized = true;
       console.log('Strudel audio engine initialized');
     } catch (error) {
@@ -33,7 +54,7 @@ export const initAudio = async () => {
       throw error;
     }
   })();
-  
+
   await initPromise;
 };
 
@@ -58,10 +79,10 @@ export const runCode = async (code: string) => {
   if (!isInitialized) {
     await initAudio();
   }
-  
+
   // Wait a bit to ensure everything is ready
   await new Promise(resolve => setTimeout(resolve, 100));
-  
+
   try {
     // Evaluate the code - Strudel will handle scheduling and playback
     // The evaluate function automatically plays patterns
@@ -69,14 +90,21 @@ export const runCode = async (code: string) => {
     if (!trimmedCode) {
       throw new Error('Empty code provided');
     }
-    
+
     // Remove comments and clean up the code
     const cleanCode = trimmedCode
       .split('\n')
       .filter(line => !line.trim().startsWith('//'))
+      .filter(line => {
+        if (line.trim().startsWith('samples(')) {
+          console.warn('Ignored samples() call in user code to prevent overwriting pre-loaded samples.');
+          return false;
+        }
+        return true;
+      })
       .join('\n')
       .trim();
-    
+
     console.log('Evaluating code:', cleanCode);
     await evaluate(cleanCode, true);
     isPlaying = true;
