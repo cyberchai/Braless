@@ -13,7 +13,8 @@ import {
   Timestamp,
   increment,
   updateDoc,
-  serverTimestamp
+  serverTimestamp,
+  deleteDoc
 } from 'firebase/firestore';
 
 export interface SourceInfo {
@@ -213,6 +214,89 @@ export const getSongVersions = async (songId: string) => {
   } catch (error: any) {
     console.error('Error fetching versions:', error);
     throw new Error(`Failed to fetch versions: ${error.message}`);
+  }
+};
+
+// Save a preset
+export const savePreset = async (userId: string, name: string, code: string): Promise<{ success: boolean; presetId?: string }> => {
+  if (!userId) {
+    throw new Error('User must be logged in to save presets');
+  }
+
+  try {
+    const presetsRef = collection(db, 'presets');
+    const presetRef = doc(presetsRef);
+    
+    const presetDoc = {
+      userId,
+      name,
+      code,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    await setDoc(presetRef, presetDoc);
+
+    return {
+      success: true,
+      presetId: presetRef.id,
+    };
+  } catch (error: any) {
+    console.error('Error saving preset:', error);
+    if (error.code === 'permission-denied') {
+      throw new Error('Firestore permission denied. Please check your security rules.');
+    }
+    throw new Error(`Failed to save preset: ${error.message}`);
+  }
+};
+
+// Get user's presets
+export const getUserPresets = async (userId: string) => {
+  try {
+    const presetsRef = collection(db, 'presets');
+    const presetQuery = query(
+      presetsRef,
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+
+    const snapshot = await getDocs(presetQuery);
+    const presets = snapshot.docs.map(doc => ({
+      id: doc.id,
+      name: doc.data().name,
+      code: doc.data().code,
+    }));
+
+    return { success: true, presets };
+  } catch (error: any) {
+    console.error('Error fetching presets:', error);
+    throw new Error(`Failed to fetch presets: ${error.message}`);
+  }
+};
+
+// Delete a preset
+export const deletePreset = async (presetId: string, userId: string): Promise<void> => {
+  if (!userId) {
+    throw new Error('User must be logged in to delete presets');
+  }
+
+  try {
+    const presetRef = doc(db, 'presets', presetId);
+    const presetDoc = await getDoc(presetRef);
+    
+    if (!presetDoc.exists()) {
+      throw new Error('Preset not found');
+    }
+
+    const presetData = presetDoc.data();
+    if (presetData.userId !== userId) {
+      throw new Error('You can only delete your own presets');
+    }
+
+    await deleteDoc(presetRef);
+  } catch (error: any) {
+    console.error('Error deleting preset:', error);
+    throw new Error(`Failed to delete preset: ${error.message}`);
   }
 };
 

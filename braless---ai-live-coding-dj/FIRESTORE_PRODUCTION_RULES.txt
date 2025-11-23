@@ -50,6 +50,26 @@ service cloud.firestore {
       // Users can delete their own versions
       allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
     }
+    
+    // Presets collection
+    match /presets/{presetId} {
+      // Users can read their own presets
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      
+      // Users can create presets - must set their own userId
+      allow create: if isAuthenticated() 
+        && request.auth.uid == request.resource.data.userId
+        && request.resource.data.keys().hasAll(['userId', 'name', 'code', 'createdAt', 'updatedAt']);
+      
+      // Users can update their own presets - cannot change userId
+      allow update: if isAuthenticated() 
+        && request.auth.uid == resource.data.userId
+        && request.auth.uid == request.resource.data.userId
+        && resource.data.userId == request.resource.data.userId;
+      
+      // Users can delete their own presets
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
   }
 }
 

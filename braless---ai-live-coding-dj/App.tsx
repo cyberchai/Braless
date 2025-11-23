@@ -19,6 +19,9 @@ import {
   getPresetSource,
   getManualSource,
   getSessionId,
+  savePreset,
+  getUserPresets,
+  deletePreset,
   SourceInfo 
 } from './services/firestoreService';
 
@@ -41,6 +44,9 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [lastSource, setLastSource] = useState<SourceInfo | null>(null);
+  const [savedPresets, setSavedPresets] = useState<Array<{ id: string; name: string; code: string }>>([]);
+  const [showSavePresetModal, setShowSavePresetModal] = useState(false);
+  const [presetName, setPresetName] = useState('');
   
   const debounceRef = useRef<number | null>(null);
 
@@ -51,13 +57,50 @@ const App: React.FC = () => {
       setAuthLoading(false);
       if (currentUser) {
         addLog('System', `Signed in as ${currentUser.displayName || currentUser.email}`, 'success');
+        // Load user's presets
+        loadUserPresets(currentUser.uid);
       } else {
         addLog('System', 'Signed out. Songs will not be saved.', 'info');
+        setSavedPresets([]);
       }
     });
 
     return () => unsubscribe();
   }, []);
+
+  // Load user's saved presets
+  const loadUserPresets = async (userId: string) => {
+    try {
+      const result = await getUserPresets(userId);
+      setSavedPresets(result.presets);
+    } catch (error: any) {
+      console.error('Failed to load presets:', error);
+      // Don't show error to user - just silently fail
+    }
+  };
+
+  // Save current code as preset
+  const handleSavePreset = async () => {
+    if (!user) {
+      addLog('System', 'Please sign in to save presets', 'error');
+      return;
+    }
+
+    if (!presetName.trim()) {
+      addLog('System', 'Please enter a preset name', 'error');
+      return;
+    }
+
+    try {
+      await savePreset(user.uid, presetName.trim(), code);
+      addLog('System', `Preset "${presetName}" saved!`, 'success');
+      setPresetName('');
+      setShowSavePresetModal(false);
+      await loadUserPresets(user.uid);
+    } catch (error: any) {
+      addLog('System', `Failed to save preset: ${error.message}`, 'error');
+    }
+  };
 
   const handleSignIn = async () => {
     try {
@@ -423,8 +466,18 @@ const App: React.FC = () => {
 
         <div className="p-4 flex-1 overflow-y-auto">
           <div className="mb-6">
-            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Presets</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Presets</h3>
+              <button
+                onClick={() => setShowSavePresetModal(true)}
+                className="text-xs px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded transition-colors"
+                title="Save current code as preset"
+              >
+                +Preset
+              </button>
+            </div>
             <div className="space-y-2">
+              {/* Built-in presets */}
               {PRESETS.map((preset) => (
                 <button
                   key={preset.name}
@@ -434,6 +487,43 @@ const App: React.FC = () => {
                   {preset.name}
                 </button>
               ))}
+              {/* User's saved presets */}
+              {savedPresets.length > 0 && (
+                <>
+                  <div className="pt-2 mt-2 border-t border-zinc-800">
+                    <h4 className="text-xs text-zinc-600 mb-2">My Presets</h4>
+                  </div>
+                  {savedPresets.map((preset) => (
+                    <div key={preset.id} className="flex items-center group">
+                      <button
+                        onClick={() => loadPreset(preset.code, preset.name)}
+                        className="flex-1 text-left px-3 py-2 rounded text-sm text-zinc-400 hover:bg-zinc-900 hover:text-white transition-colors"
+                      >
+                        {preset.name}
+                      </button>
+                      {user && (
+                        <button
+                          onClick={async () => {
+                            if (confirm(`Delete preset "${preset.name}"?`)) {
+                              try {
+                                await deletePreset(preset.id, user.uid);
+                                addLog('System', `Preset "${preset.name}" deleted`, 'info');
+                                await loadUserPresets(user.uid);
+                              } catch (error: any) {
+                                addLog('System', `Failed to delete preset: ${error.message}`, 'error');
+                              }
+                            }
+                          }}
+                          className="opacity-0 group-hover:opacity-100 px-2 py-1 text-xs text-red-400 hover:text-red-300 transition-opacity"
+                          title="Delete preset"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           </div>
 
@@ -577,6 +667,51 @@ const App: React.FC = () => {
           Stop
         </button>
       </div>
+
+      {/* Save Preset Modal */}
+      {showSavePresetModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => {
+          setShowSavePresetModal(false);
+          setPresetName('');
+        }}>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold mb-4">Save Preset</h2>
+            <input
+              type="text"
+              value={presetName}
+              onChange={(e) => setPresetName(e.target.value)}
+              placeholder="Enter preset name..."
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 mb-4"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSavePreset();
+                } else if (e.key === 'Escape') {
+                  setShowSavePresetModal(false);
+                  setPresetName('');
+                }
+              }}
+              autoFocus
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowSavePresetModal(false);
+                  setPresetName('');
+                }}
+                className="px-4 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSavePreset}
+                className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
