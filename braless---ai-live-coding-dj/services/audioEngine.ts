@@ -7,6 +7,7 @@ import { initStrudel, evaluate, hush } from '@strudel/web';
 
 let isInitialized = false;
 let isPlaying = false;
+let initPromise: Promise<void> | null = null;
 
 /**
  * Initialize Strudel (async, call once on app start)
@@ -16,14 +17,24 @@ export const initAudio = async () => {
     return;
   }
   
-  try {
-    await initStrudel();
-    isInitialized = true;
-    console.log('Strudel audio engine initialized');
-  } catch (error) {
-    console.error('Failed to initialize Strudel:', error);
-    throw error;
+  if (initPromise) {
+    await initPromise;
+    return;
   }
+  
+  initPromise = (async () => {
+    try {
+      await initStrudel();
+      isInitialized = true;
+      console.log('Strudel audio engine initialized');
+    } catch (error) {
+      console.error('Failed to initialize Strudel:', error);
+      initPromise = null;
+      throw error;
+    }
+  })();
+  
+  await initPromise;
 };
 
 /**
@@ -48,6 +59,9 @@ export const runCode = async (code: string) => {
     await initAudio();
   }
   
+  // Wait a bit to ensure everything is ready
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
   try {
     // Evaluate the code - Strudel will handle scheduling and playback
     // The evaluate function automatically plays patterns
@@ -55,7 +69,16 @@ export const runCode = async (code: string) => {
     if (!trimmedCode) {
       throw new Error('Empty code provided');
     }
-    await evaluate(trimmedCode, true);
+    
+    // Remove comments and clean up the code
+    const cleanCode = trimmedCode
+      .split('\n')
+      .filter(line => !line.trim().startsWith('//'))
+      .join('\n')
+      .trim();
+    
+    console.log('Evaluating code:', cleanCode);
+    await evaluate(cleanCode, true);
     isPlaying = true;
   } catch (error) {
     console.error('Error running code:', error);

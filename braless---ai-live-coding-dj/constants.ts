@@ -1,14 +1,6 @@
 import { Agent, CodeSnippet } from './types';
 
-export const INITIAL_CODE = `// Welcome to Braless
-// Live coding environment
-// Shift+Enter to run
-
-stack(
-  note("c3 e3 g3 b3").s("sawtooth").lpf(500).room(1),
-  note("c2 . . g2").s("sine").gain(1.5)
-)
-`;
+export const INITIAL_CODE = `note('c e a').s('sawtooth')`;
 
 export const AGENTS: Agent[] = [
   {
@@ -38,16 +30,16 @@ export const PRESETS: CodeSnippet[] = [
   {
     name: 'Basic Techno',
     code: `stack(
-  note("c2 c2 . c2").s("square").lpf(400),
-  s("bd hh sd hh")
+  note('c2 c2 ~ c2').s('square').lpf(400),
+  s('bd hh sd hh')
 )`
   },
   {
     name: 'Ambient Pad',
-    code: `note("c3 e3 g3 b3").s("triangle").attack(0.5).release(2).room(0.8)`
+    code: `note('c3 e3 g3 b3').s('triangle').attack(0.5).release(2).room(0.8)`
   },
   {
     name: 'Acid Bass',
-    code: `note("c2 c3 c2 .").s("sawtooth").lpf(sine.range(200, 2000)).resonance(10)`
+    code: `note('c2 c3 c2 ~').s('sawtooth').lpf(sine.range(200, 2000)).resonance(10)`
   }
 ];
