@@ -15,6 +15,7 @@
     "@strudel/soundfonts": "^1.2.6",
     "@strudel/web": "^1.2.6",
     "d3": "^7.9.0",
+    "firebase": "^12.6.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

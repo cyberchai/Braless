@@ -5,10 +5,13 @@ import AgentPanel from './components/AgentPanel';
 import ChatInterface from './components/ChatInterface';
 import BralessLogo from './components/BralessLogo';
 import DancingBanana from './components/DancingBanana';
+import AuthButton from './components/AuthButton';
 import { INITIAL_CODE, AGENTS, PRESETS } from './constants';
 import { Agent, LogEntry, AudioStatus } from './types';
 import { geminiService } from './services/geminiService';
 import { runCode, stopAudio } from './services/audioEngine';
+import { signInWithGoogle, logout, onAuthChange } from './services/firebase';
+import { User } from 'firebase/auth';
 
 const App: React.FC = () => {
   // History State Management
@@ -26,8 +29,45 @@ const App: React.FC = () => {
   const [status, setStatus] = useState<AudioStatus>(AudioStatus.STOPPED);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   
   const debounceRef = useRef<number | null>(null);
+
+  // Firebase Auth state listener
+  useEffect(() => {
+    const unsubscribe = onAuthChange((currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+      if (currentUser) {
+        addLog('System', `Signed in as ${currentUser.displayName || currentUser.email}`, 'success');
+      } else {
+        addLog('System', 'Signed out. Songs will not be saved.', 'info');
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleSignIn = async () => {
+    try {
+      setAuthLoading(true);
+      await signInWithGoogle();
+    } catch (error: any) {
+      addLog('System', `Sign in failed: ${error.message}`, 'error');
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      setAuthLoading(true);
+      await logout();
+    } catch (error: any) {
+      addLog('System', `Sign out failed: ${error.message}`, 'error');
+      setAuthLoading(false);
+    }
+  };
 
   const addLog = (source: LogEntry['source'], message: string, type: LogEntry['type'] = 'info') => {
     const newLog: LogEntry = {
@@ -353,7 +393,7 @@ const App: React.FC = () => {
 
           <div>
             <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Session Log</h3>
-            <div className="space-y-3 font-mono text-xs">
+            <div className="space-y-3 font-mono text-xs max-h-64 overflow-y-auto">
               {logs.map((log) => (
                 <div key={log.id} className="border-l-2 border-zinc-800 pl-3 py-1 shadow-[inset_2px_0_10px_rgba(99,102,241,0.2)]">
                   <div className="flex justify-between text-zinc-600 mb-0.5">
@@ -369,11 +409,30 @@ const App: React.FC = () => {
           </div>
         </div>
         
-        <div className="p-4 border-t border-zinc-900">
-           <div className="flex items-center gap-2 text-zinc-600 text-xs">
-             <span className={`w-2 h-2 rounded-full ${status === AudioStatus.PLAYING ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-             Status: {status}
-           </div>
+        <div className="p-4 border-t border-zinc-900 space-y-3">
+          <div className="flex items-center gap-2 text-zinc-600 text-xs">
+            <span className={`w-2 h-2 rounded-full ${status === AudioStatus.PLAYING ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+            Status: {status}
+          </div>
+          {user && (
+            <button
+              onClick={() => {
+                // TODO: Implement save functionality
+                addLog('System', 'Save functionality coming soon!', 'info');
+              }}
+              className="w-full px-3 py-2 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3-3m0 0l-3 3m3-3v12"></path>
+              </svg>
+              Save Song
+            </button>
+          )}
+          {!user && (
+            <div className="text-xs text-zinc-500 text-center">
+              Sign in to save songs
+            </div>
+          )}
         </div>
       </div>
 
@@ -383,6 +442,14 @@ const App: React.FC = () => {
         <div className="h-64 p-6 border-b border-zinc-900 bg-zinc-900/20 animate-slow-glow-top">
           <div className="flex justify-between items-center mb-4">
              <h2 className="text-lg font-semibold">Main Stage</h2>
+             <div className="flex items-center gap-3">
+               <AuthButton 
+                 user={user} 
+                 onSignIn={handleSignIn} 
+                 onSignOut={handleSignOut}
+                 isLoading={authLoading}
+               />
+             </div>
           </div>
           <div className="grid grid-cols-3 gap-4 h-48">
             <div className="col-span-2">
