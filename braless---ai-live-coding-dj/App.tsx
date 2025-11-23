@@ -349,15 +349,17 @@ const App: React.FC = () => {
                     </ul>
                  </div>
               </div>
-              <ChatInterface onSend={handleChatRequest} isProcessing={isProcessing} />
             </div>
 
           </div>
         </div>
       </div>
 
-      {/* Floating Control Buttons at Bottom */}
+      {/* Floating Control Buttons and AI Director Input at Bottom */}
       <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-3">
+        <div className="relative">
+          <ChatInterface onSend={handleChatRequest} isProcessing={isProcessing} />
+        </div>
         <button 
           onClick={handleRun}
           className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-full shadow-lg shadow-indigo-500/20 text-sm font-semibold transition-all active:scale-95 flex items-center gap-2 shadow-[0_0_25px_rgba(99,102,241,0.6)] hover:shadow-[0_0_35px_rgba(99,102,241,0.8)]"
