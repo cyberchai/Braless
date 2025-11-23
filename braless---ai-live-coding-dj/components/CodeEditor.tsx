@@ -62,8 +62,28 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   };
 
   return (
-    <div className="relative flex flex-col h-full bg-zinc-950 rounded-lg border border-zinc-800 overflow-hidden font-mono shadow-[0_0_30px_rgba(99,102,241,0.3)]">
-      <div className="flex items-center justify-between px-4 py-2 bg-zinc-900 border-b border-zinc-800 shadow-[0_2px_15px_rgba(99,102,241,0.2)]">
+    <>
+      <style>{`
+        @keyframes slow-glow-editor {
+          0%, 100% { 
+            box-shadow: 0 0 30px rgba(99, 102, 241, 0.3);
+          }
+          25% { 
+            box-shadow: 0 0 33px rgba(99, 102, 241, 0.33);
+          }
+          50% { 
+            box-shadow: 0 0 40px rgba(99, 102, 241, 0.4);
+          }
+          75% { 
+            box-shadow: 0 0 33px rgba(99, 102, 241, 0.33);
+          }
+        }
+        .animate-slow-glow-editor {
+          animation: slow-glow-editor 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+      `}</style>
+      <div className="relative flex flex-col h-full bg-zinc-950 rounded-lg border border-zinc-800 overflow-hidden font-mono animate-slow-glow-editor">
+        <div className="flex items-center justify-between px-4 py-2 bg-zinc-900 border-b border-zinc-800 shadow-[0_2px_15px_rgba(99,102,241,0.2)]">
         <div className="flex items-center space-x-4">
           <div className="flex space-x-2">
             <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50"></div>
@@ -105,17 +125,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         spellCheck={false}
         autoComplete="off"
       />
-      
-      <div className="absolute bottom-4 right-4">
-        <button 
-          onClick={onRun}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-full shadow-lg shadow-indigo-500/20 text-sm font-semibold transition-all active:scale-95 flex items-center gap-2 shadow-[0_0_25px_rgba(99,102,241,0.6)] hover:shadow-[0_0_35px_rgba(99,102,241,0.8)]"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-          Run Code
-        </button>
       </div>
-    </div>
+    </>
   );
 };
 

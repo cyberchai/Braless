@@ -75,7 +75,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ isPlaying }) => {
   }, [isPlaying]);
 
   return (
-    <div className="w-full h-48 bg-zinc-900/50 rounded-lg overflow-hidden border border-zinc-800 shadow-inner relative shadow-[0_0_30px_rgba(139,92,246,0.3)]">
+    <div className="w-full h-48 bg-zinc-900/50 rounded-lg overflow-hidden border border-zinc-800 shadow-inner relative shadow-[0_0_30px_rgba(139,92,246,0.2),0_0_15px_rgba(139,92,246,0.1)] ring-1 ring-purple-500/20">
        <div className="absolute top-2 left-2 text-xs text-zinc-500 uppercase font-mono tracking-widest">
           Visualizer Output
        </div>
