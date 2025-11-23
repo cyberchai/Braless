@@ -12,6 +12,15 @@ import { geminiService } from './services/geminiService';
 import { runCode, stopAudio } from './services/audioEngine';
 import { signInWithGoogle, logout, onAuthChange } from './services/firebase';
 import { User } from 'firebase/auth';
+import { 
+  saveSongVersion, 
+  getAgentSource, 
+  getTextSource, 
+  getPresetSource,
+  getManualSource,
+  getSessionId,
+  SourceInfo 
+} from './services/firestoreService';
 
 const App: React.FC = () => {
   // History State Management
@@ -31,6 +40,7 @@ const App: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [lastSource, setLastSource] = useState<SourceInfo | null>(null);
   
   const debounceRef = useRef<number | null>(null);
 
@@ -137,15 +147,43 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const handleRun = useCallback(async () => {
+  // Helper function to save and run code
+  const saveAndRunCode = useCallback(async (codeToRun: string, sourceToSave: SourceInfo | null = null) => {
     try {
       setStatus(AudioStatus.PLAYING);
-      await runCode(code);
+      await runCode(codeToRun);
+      
+      // Save version to MongoDB if user is logged in
+      if (user) {
+        try {
+          await saveSongVersion({
+            userId: user.uid,
+            userEmail: user.email,
+            userName: user.displayName,
+            code: codeToRun,
+            source: sourceToSave || lastSource || getManualSource(),
+            sessionId: getSessionId(),
+          });
+          addLog('System', 'Version saved to database', 'success');
+        } catch (error: any) {
+          console.error('Failed to save version:', error);
+          addLog('System', `Failed to save version: ${error.message}`, 'error');
+        }
+      }
+    } catch (error) {
+      console.error('Error running code:', error);
+      throw error;
+    }
+  }, [user, lastSource]);
+
+  const handleRun = useCallback(async () => {
+    try {
+      await saveAndRunCode(code, lastSource || getManualSource());
       addLog('User', 'Updated live code', 'success');
     } catch (e) {
       addLog('System', 'Error running code', 'error');
     }
-  }, [code]);
+  }, [code, saveAndRunCode, lastSource]);
 
   const handleStop = useCallback(() => {
     stopAudio();
@@ -155,6 +193,9 @@ const App: React.FC = () => {
 
   const handleAgentTrigger = async (agent: Agent) => {
     setIsProcessing(true);
+    // Track source before processing
+    setLastSource(getAgentSource(agent));
+    
     // Special message for Mr. Frat
     if (agent.role === 'Vibes Maximizer') {
       addLog('System', `${agent.name} is maximizing the vibes...`, 'info');
@@ -194,7 +235,7 @@ const App: React.FC = () => {
             addLog('AI', `${agent.name}: ${commentary}`, 'info');
             handleImmediateCodeChange(actualCode);
             addLog('AI', `${agent.name} modified the pattern`, 'code');
-            await runCode(actualCode);
+            await saveAndRunCode(actualCode, getAgentSource(agent));
             if (status === AudioStatus.STOPPED) setStatus(AudioStatus.PLAYING);
           }
         } else if (newCode.startsWith('RHYTHM_CHANGE_VALIDATED:')) {
@@ -207,7 +248,7 @@ const App: React.FC = () => {
             addLog('AI', `Music Theory Agent (auto-triggered): ${analysis}`, 'info');
             handleImmediateCodeChange(actualCode);
             addLog('AI', `${agent.name} modified the pattern`, 'code');
-            await runCode(actualCode);
+            await saveAndRunCode(actualCode, getAgentSource(agent));
             if (status === AudioStatus.STOPPED) setStatus(AudioStatus.PLAYING);
           }
         } else if (newCode.startsWith('FX_WARNINGS:')) {
@@ -221,14 +262,14 @@ const App: React.FC = () => {
             });
             handleImmediateCodeChange(actualCode);
             addLog('AI', `${agent.name} modified the pattern (with warnings)`, 'code');
-            await runCode(actualCode);
+            await saveAndRunCode(actualCode, getAgentSource(agent));
             if (status === AudioStatus.STOPPED) setStatus(AudioStatus.PLAYING);
           }
         } else {
           // Normal code application
           handleImmediateCodeChange(newCode);
           addLog('AI', `${agent.name} modified the pattern`, 'code');
-          await runCode(newCode);
+          await saveAndRunCode(newCode, getAgentSource(agent));
           if (status === AudioStatus.STOPPED) setStatus(AudioStatus.PLAYING);
         }
       }
@@ -241,6 +282,9 @@ const App: React.FC = () => {
 
   const handleChatRequest = async (message: string) => {
     setIsProcessing(true);
+    // Track source before processing
+    setLastSource(getTextSource(message));
+    
     addLog('User', message, 'info');
     try {
       // Detect if this is a music theory request (creative/emotional language)
@@ -264,7 +308,7 @@ const App: React.FC = () => {
       }
       
       handleImmediateCodeChange(newCode);
-      await runCode(newCode);
+      await saveAndRunCode(newCode, getTextSource(message));
       if (status === AudioStatus.STOPPED) setStatus(AudioStatus.PLAYING);
     } catch (e) {
       addLog('System', 'Failed to process request', 'error');
@@ -274,6 +318,8 @@ const App: React.FC = () => {
   };
 
   const loadPreset = (presetCode: string, name: string) => {
+    // Track source when preset is loaded
+    setLastSource(getPresetSource(name));
     handleImmediateCodeChange(presetCode);
     addLog('System', `Loaded preset: ${name}`, 'info');
     handleStop();

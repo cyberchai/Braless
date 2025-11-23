@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Songs collection
+    match /songs/{songId} {
+      // Users can read their own songs
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      
+      // Users can create songs - must set their own userId
+      allow create: if isAuthenticated() 
+        && request.auth.uid == request.resource.data.userId
+        && request.resource.data.keys().hasAll(['userId', 'createdAt', 'updatedAt', 'metadata']);
+      
+      // Users can update their own songs - cannot change userId
+      allow update: if isAuthenticated() 
+        && request.auth.uid == resource.data.userId
+        && request.auth.uid == request.resource.data.userId
+        && resource.data.userId == request.resource.data.userId;
+      
+      // Users can delete their own songs
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+    
+    // Song versions collection
+    match /songVersions/{versionId} {
+      // Users can read versions of their own songs
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      
+      // Users can create versions - must set their own userId
+      allow create: if isAuthenticated() 
+        && request.auth.uid == request.resource.data.userId
+        && request.resource.data.keys().hasAll(['songId', 'versionNumber', 'code', 'userId', 'createdAt', 'executedAt']);
+      
+      // Users can update their own versions - cannot change userId
+      allow update: if isAuthenticated() 
+        && request.auth.uid == resource.data.userId
+        && request.auth.uid == request.resource.data.userId
+        && resource.data.userId == request.resource.data.userId;
+      
+      // Users can delete their own versions
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+  }
+}
+
