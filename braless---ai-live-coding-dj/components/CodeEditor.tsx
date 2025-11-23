@@ -15,6 +15,22 @@ interface CodeEditorProps {
   onToggleChanges?: () => void;
 }
 
+// Strudel autocomplete suggestions
+const STRUDEL_COMPLETIONS = [
+  // Functions
+  's(', 'note(', 'stack(', 'slow(', 'fast(',
+  // Methods
+  '.gain(', '.speed(', '.lpf(', '.hpf(', '.delay(', '.reverb(', '.room(', 
+  '.attack(', '.release(', '.clip(', '.cutoff(', '.resonance(', '.decay(', 
+  '.sustain(', '.s(', '.add(', '.superimpose(', '.off(', '.degradeBy(',
+  // Samples
+  'bd', 'sd', 'hh', 'cp', 'cr', 'oh', 'rd', 'perc',
+  // Waveforms
+  'sawtooth', 'square', 'triangle', 'sine',
+  // Patterns
+  '~', // rest
+];
+
 const CodeEditor: React.FC<CodeEditorProps> = ({ 
   code, 
   onChange, 
@@ -31,6 +47,10 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const codeDisplayRef = useRef<HTMLDivElement>(null);
   const [hoveredLineIndex, setHoveredLineIndex] = useState<number | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
+  const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const [autocompletePosition, setAutocompletePosition] = useState<{ top: number; left: number } | null>(null);
+  const [currentWord, setCurrentWord] = useState('');
 
   // Get the most recent agent change that matches current code
   const currentChange = useMemo(() => {
@@ -47,7 +67,148 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   }, [currentChange, showChanges]);
 
 
+  // Get current word at cursor position
+  const getCurrentWord = (text: string, cursorPos: number): { word: string; start: number; end: number } => {
+    const beforeCursor = text.substring(0, cursorPos);
+    const afterCursor = text.substring(cursorPos);
+    
+    // Find word boundaries - handle method chains like .gain(, function calls like s(, and identifiers
+    // Match: word chars, dots, opening parens (for function calls), quotes, tildes, dashes
+    const wordMatch = beforeCursor.match(/[\w.('"~-]+$/);
+    const afterMatch = afterCursor.match(/^[\w.()'"~-]*/);
+    
+    if (wordMatch) {
+      const start = cursorPos - wordMatch[0].length;
+      const word = wordMatch[0] + afterMatch[0];
+      return { word, start, end: cursorPos + afterMatch[0].length };
+    }
+    
+    return { word: '', start: cursorPos, end: cursorPos };
+  };
+
+  // Update autocomplete suggestions
+  const updateAutocomplete = (text: string, cursorPos: number) => {
+    const { word, start } = getCurrentWord(text, cursorPos);
+    
+    if (word.length === 0) {
+      setAutocompleteSuggestions([]);
+      setAutocompletePosition(null);
+      return;
+    }
+
+    // Filter suggestions based on current word
+    // If word starts with '.', only show methods
+    // Otherwise show all matching completions
+    let filteredCompletions = STRUDEL_COMPLETIONS;
+    if (word.startsWith('.')) {
+      filteredCompletions = STRUDEL_COMPLETIONS.filter(c => c.startsWith('.'));
+    } else if (!word.includes('.')) {
+      // If no dot, exclude methods (they start with .)
+      filteredCompletions = STRUDEL_COMPLETIONS.filter(c => !c.startsWith('.'));
+    }
+
+    const suggestions = filteredCompletions.filter(completion => 
+      completion.toLowerCase().startsWith(word.toLowerCase())
+    ).slice(0, 8); // Limit to 8 suggestions
+
+    if (suggestions.length > 0) {
+      setAutocompleteSuggestions(suggestions);
+      setSelectedSuggestionIndex(0);
+      setCurrentWord(word);
+      
+      // Calculate position for autocomplete dropdown
+      if (textareaRef.current) {
+        const textarea = textareaRef.current;
+        const textBeforeCursor = text.substring(0, start);
+        const lines = textBeforeCursor.split('\n');
+        const currentLine = lines.length - 1;
+        const currentLineText = lines[currentLine] || '';
+        
+        // Create a temporary span to measure text width
+        const measureSpan = document.createElement('span');
+        measureSpan.style.visibility = 'hidden';
+        measureSpan.style.position = 'absolute';
+        measureSpan.style.fontFamily = 'monospace';
+        measureSpan.style.fontSize = '0.875rem';
+        measureSpan.style.whiteSpace = 'pre';
+        measureSpan.textContent = currentLineText;
+        document.body.appendChild(measureSpan);
+        
+        const textWidth = measureSpan.offsetWidth;
+        const lineHeight = 24; // 1.5rem line height
+        const padding = 16; // p-4 = 1rem
+        
+        document.body.removeChild(measureSpan);
+        
+        const rect = textarea.getBoundingClientRect();
+        setAutocompletePosition({
+          top: rect.top + padding + (currentLine * lineHeight) + lineHeight,
+          left: rect.left + padding + textWidth
+        });
+      }
+    } else {
+      setAutocompleteSuggestions([]);
+      setAutocompletePosition(null);
+    }
+  };
+
+  // Insert autocomplete suggestion
+  const insertSuggestion = (suggestion: string) => {
+    if (!textareaRef.current) return;
+    
+    const textarea = textareaRef.current;
+    const start = textarea.selectionStart;
+    const { word, start: wordStart, end: wordEnd } = getCurrentWord(code, start);
+    
+    const beforeWord = code.substring(0, wordStart);
+    const afterWord = code.substring(wordEnd);
+    const newCode = beforeWord + suggestion + afterWord;
+    
+    onChange(newCode);
+    
+    // Set cursor position after inserted suggestion
+    setTimeout(() => {
+      const newPos = wordStart + suggestion.length;
+      textarea.selectionStart = textarea.selectionEnd = newPos;
+      textarea.focus();
+      // Update autocomplete after insertion
+      updateAutocomplete(newCode, newPos);
+    }, 0);
+    
+    setAutocompleteSuggestions([]);
+    setAutocompletePosition(null);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Handle autocomplete
+    if (autocompleteSuggestions.length > 0) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        insertSuggestion(autocompleteSuggestions[selectedSuggestionIndex]);
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => 
+          (prev + 1) % autocompleteSuggestions.length
+        );
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => 
+          prev === 0 ? autocompleteSuggestions.length - 1 : prev - 1
+        );
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setAutocompleteSuggestions([]);
+        setAutocompletePosition(null);
+        return;
+      }
+    }
+
     // Run Shortcut
     if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault();
@@ -73,8 +234,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       return;
     }
 
-    // Tab Handling
-    if (e.key === 'Tab') {
+    // Tab Handling (only if no autocomplete)
+    if (e.key === 'Tab' && autocompleteSuggestions.length === 0) {
       e.preventDefault();
       const target = e.target as HTMLTextAreaElement;
       const start = target.selectionStart;
@@ -85,6 +246,18 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         target.selectionStart = target.selectionEnd = start + 2;
       }, 0);
     }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newCode = e.target.value;
+    onChange(newCode);
+    
+    // Update autocomplete after a short delay
+    setTimeout(() => {
+      if (textareaRef.current) {
+        updateAutocomplete(newCode, textareaRef.current.selectionStart);
+      }
+    }, 50);
   };
 
   const handleSegmentHover = (lineIndex: number, event: React.MouseEvent) => {
@@ -353,8 +526,13 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         <textarea
           ref={textareaRef}
           value={code}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
+          onSelect={(e) => {
+            if (textareaRef.current) {
+              updateAutocomplete(code, textareaRef.current.selectionStart);
+            }
+          }}
           className="code-textarea relative w-full p-4 bg-transparent text-sm leading-relaxed focus:outline-none resize-none"
           spellCheck={false}
           autoComplete="off"
@@ -399,6 +577,36 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
             {currentChange.explanation}
           </div>
           <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-zinc-700"></div>
+        </div>
+      )}
+
+      {/* Autocomplete Dropdown */}
+      {autocompleteSuggestions.length > 0 && autocompletePosition && (
+        <div
+          className="fixed z-50 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden"
+          style={{
+            top: `${autocompletePosition.top}px`,
+            left: `${autocompletePosition.left}px`,
+            minWidth: '200px'
+          }}
+        >
+          {autocompleteSuggestions.map((suggestion, index) => (
+            <div
+              key={suggestion}
+              className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
+                index === selectedSuggestionIndex
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-zinc-300 hover:bg-zinc-800'
+              }`}
+              onMouseEnter={() => setSelectedSuggestionIndex(index)}
+              onClick={() => insertSuggestion(suggestion)}
+            >
+              {suggestion}
+            </div>
+          ))}
+          <div className="px-3 py-1 text-xs text-zinc-500 border-t border-zinc-800">
+            Tab to accept • ↑↓ to navigate • Esc to dismiss
+          </div>
         </div>
       )}
       </div>

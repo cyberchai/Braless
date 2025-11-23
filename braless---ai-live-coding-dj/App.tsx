@@ -22,6 +22,8 @@ import {
   savePreset,
   getUserPresets,
   deletePreset,
+  getUserTracks,
+  updateSongTitle,
   SourceInfo 
 } from './services/firestoreService';
 import { computeDiff } from './utils/diff';
@@ -50,6 +52,9 @@ const App: React.FC = () => {
   const [presetName, setPresetName] = useState('');
   const [agentChanges, setAgentChanges] = useState<AgentChange[]>([]);
   const [showAgentChanges, setShowAgentChanges] = useState(true);
+  const [tracks, setTracks] = useState<Array<{ id: string; title: string; latestVersion: { code: string; versionNumber: number } | null }>>([]);
+  const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
+  const [editingTrackName, setEditingTrackName] = useState('');
   
   const debounceRef = useRef<number | null>(null);
 
@@ -60,11 +65,13 @@ const App: React.FC = () => {
       setAuthLoading(false);
       if (currentUser) {
         addLog('System', `Signed in as ${currentUser.displayName || currentUser.email}`, 'success');
-        // Load user's presets
+        // Load user's presets and tracks
         loadUserPresets(currentUser.uid);
+        loadUserTracks(currentUser.uid);
       } else {
         addLog('System', 'Signed out. Songs will not be saved.', 'info');
         setSavedPresets([]);
+        setTracks([]);
       }
     });
 
@@ -80,6 +87,45 @@ const App: React.FC = () => {
       console.error('Failed to load presets:', error);
       // Don't show error to user - just silently fail
     }
+  };
+
+  // Load user's tracks
+  const loadUserTracks = async (userId: string) => {
+    try {
+      const result = await getUserTracks(userId);
+      setTracks(result.tracks);
+    } catch (error: any) {
+      console.error('Failed to load tracks:', error);
+      // Don't show error to user - just silently fail
+    }
+  };
+
+  // Handle track rename
+  const handleRenameTrack = async (trackId: string, newTitle: string) => {
+    if (!user) return;
+    
+    if (!newTitle.trim()) {
+      addLog('System', 'Track name cannot be empty', 'error');
+      return;
+    }
+
+    try {
+      await updateSongTitle(trackId, user.uid, newTitle.trim());
+      addLog('System', `Track renamed to "${newTitle.trim()}"`, 'success');
+      setEditingTrackId(null);
+      setEditingTrackName('');
+      await loadUserTracks(user.uid);
+    } catch (error: any) {
+      addLog('System', `Failed to rename track: ${error.message}`, 'error');
+    }
+  };
+
+  // Load track code
+  const loadTrack = (trackCode: string, trackTitle: string) => {
+    setLastSource(getPresetSource(trackTitle));
+    handleImmediateCodeChange(trackCode);
+    addLog('System', `Loaded track: ${trackTitle}`, 'info');
+    handleStop();
   };
 
   // Save current code as preset
@@ -233,7 +279,7 @@ const App: React.FC = () => {
       setStatus(AudioStatus.PLAYING);
       await runCode(codeToRun);
       
-      // Save version to MongoDB if user is logged in
+          // Save version to MongoDB if user is logged in
       if (user) {
         try {
           await saveSongVersion({
@@ -245,6 +291,8 @@ const App: React.FC = () => {
             sessionId: getSessionId(),
           });
           addLog('System', 'Version saved to database', 'success');
+          // Refresh tracks to show updated versions
+          await loadUserTracks(user.uid);
         } catch (error: any) {
           console.error('Failed to save version:', error);
           addLog('System', `Failed to save version: ${error.message}`, 'error');
@@ -570,6 +618,89 @@ const App: React.FC = () => {
                     </div>
                   ))}
                 </>
+              )}
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">My Tracks</h3>
+            <div className="space-y-2">
+              {tracks.length === 0 ? (
+                <div className="text-xs text-zinc-600 px-3 py-2">
+                  No tracks yet. Your songs will appear here automatically.
+                </div>
+              ) : (
+                tracks.map((track) => (
+                  <div key={track.id} className="flex items-center group">
+                    {editingTrackId === track.id ? (
+                      <div className="flex-1 flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={editingTrackName}
+                          onChange={(e) => setEditingTrackName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleRenameTrack(track.id, editingTrackName);
+                            } else if (e.key === 'Escape') {
+                              setEditingTrackId(null);
+                              setEditingTrackName('');
+                            }
+                          }}
+                          className="flex-1 px-2 py-1 text-sm bg-zinc-800 border border-zinc-700 rounded text-white focus:outline-none focus:border-indigo-500"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => handleRenameTrack(track.id, editingTrackName)}
+                          className="px-2 py-1 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded transition-colors"
+                          title="Save"
+                        >
+                          ✓
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingTrackId(null);
+                            setEditingTrackName('');
+                          }}
+                          className="px-2 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded transition-colors"
+                          title="Cancel"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => {
+                            if (track.latestVersion) {
+                              loadTrack(track.latestVersion.code, track.title);
+                            } else {
+                              addLog('System', 'This track has no versions yet', 'error');
+                            }
+                          }}
+                          className="flex-1 text-left px-3 py-2 rounded text-sm text-zinc-400 hover:bg-zinc-900 hover:text-white transition-colors"
+                          disabled={!track.latestVersion}
+                        >
+                          {track.title}
+                          {track.latestVersion && (
+                            <span className="text-xs text-zinc-600 ml-2">v{track.latestVersion.versionNumber}</span>
+                          )}
+                        </button>
+                        {user && (
+                          <button
+                            onClick={() => {
+                              setEditingTrackId(track.id);
+                              setEditingTrackName(track.title);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 px-2 py-1 text-xs text-indigo-400 hover:text-indigo-300 transition-opacity"
+                            title="Rename track"
+                          >
+                            ✎
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))
               )}
             </div>
           </div>

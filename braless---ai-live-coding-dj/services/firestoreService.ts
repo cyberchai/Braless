@@ -300,3 +300,104 @@ export const deletePreset = async (presetId: string, userId: string): Promise<vo
   }
 };
 
+// Get user's tracks with latest versions
+export const getUserTracks = async (userId: string) => {
+  try {
+    const songsRef = collection(db, 'songs');
+    // Try to order by updatedAt, fall back to createdAt if index doesn't exist
+    let snapshot;
+    try {
+      const songQuery = query(
+        songsRef,
+        where('userId', '==', userId),
+        orderBy('updatedAt', 'desc')
+      );
+      snapshot = await getDocs(songQuery);
+    } catch (indexError: any) {
+      // Fall back to createdAt if updatedAt index doesn't exist
+      if (indexError?.code === 'failed-precondition') {
+        const songQuery = query(
+          songsRef,
+          where('userId', '==', userId),
+          orderBy('createdAt', 'desc')
+        );
+        snapshot = await getDocs(songQuery);
+      } else {
+        throw indexError;
+      }
+    }
+    
+    const songs = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // For each song, get the latest version
+    const tracksWithVersions = await Promise.all(
+      songs.map(async (song) => {
+        const versionsRef = collection(db, 'songVersions');
+        const versionQuery = query(
+          versionsRef,
+          where('songId', '==', song.id),
+          orderBy('versionNumber', 'desc'),
+          limit(1)
+        );
+
+        const versionSnapshot = await getDocs(versionQuery);
+        const latestVersion = versionSnapshot.empty 
+          ? null 
+          : {
+              id: versionSnapshot.docs[0].id,
+              ...versionSnapshot.docs[0].data(),
+            };
+
+        return {
+          id: song.id,
+          title: song.title || `Session ${new Date(song.createdAt?.toDate?.() || Date.now()).toLocaleDateString()}`,
+          createdAt: song.createdAt,
+          updatedAt: song.updatedAt,
+          latestVersion: latestVersion ? {
+            code: latestVersion.code,
+            versionNumber: latestVersion.versionNumber,
+            createdAt: latestVersion.createdAt,
+          } : null,
+        };
+      })
+    );
+
+    return { success: true, tracks: tracksWithVersions };
+  } catch (error: any) {
+    console.error('Error fetching tracks:', error);
+    throw new Error(`Failed to fetch tracks: ${error.message}`);
+  }
+};
+
+// Update song title
+export const updateSongTitle = async (songId: string, userId: string, newTitle: string): Promise<void> => {
+  if (!userId) {
+    throw new Error('User must be logged in to update songs');
+  }
+
+  try {
+    const songRef = doc(db, 'songs', songId);
+    const songDoc = await getDoc(songRef);
+    
+    if (!songDoc.exists()) {
+      throw new Error('Song not found');
+    }
+
+    const songData = songDoc.data();
+    if (songData.userId !== userId) {
+      throw new Error('You can only update your own songs');
+    }
+
+    await updateDoc(songRef, {
+      title: newTitle.trim(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error: any) {
+    console.error('Error updating song title:', error);
+    throw new Error(`Failed to update song title: ${error.message}`);
+  }
+};
+
