@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@types/gm": "^1.25.4"
+  }
+}

@@ -18,7 +18,7 @@ interface CodeEditorProps {
 // Strudel autocomplete suggestions
 const STRUDEL_COMPLETIONS = [
   // Functions
-  's(', 'note(', 'stack(', 'slow(', 'fast(',
+  's(', 'note(', 'stack(', 'slow(', 'fast(', 'samples(',
   // Methods
   '.gain(', '.speed(', '.lpf(', '.hpf(', '.delay(', '.reverb(', '.room(', 
   '.attack(', '.release(', '.clip(', '.cutoff(', '.resonance(', '.decay(', 

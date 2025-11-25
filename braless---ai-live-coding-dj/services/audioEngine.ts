@@ -32,6 +32,9 @@ export const initAudio = async () => {
     try {
       await initStrudel();
 
+      // Expose samples function globally so it's available in user code
+      (window as any).samples = samples;
+
       // Load all default samples from dough-samples + crate
       const ds = "https://raw.githubusercontent.com/felixroos/dough-samples/main";
       await Promise.all([
@@ -110,6 +113,113 @@ export const stopAudio = () => {
 };
 
 /**
+ * Extract and execute samples() calls from code
+ * Returns the code with samples() calls removed and executes them first
+ * Handles multi-line calls with object literals and multiple arguments
+ */
+const extractAndExecuteSamples = async (code: string): Promise<string> => {
+  const samplesCalls: Array<{ call: string; start: number; end: number }> = [];
+  
+  // Find all samples() calls by tracking balanced parentheses
+  // This handles multi-line calls with object literals
+  const samplesRegex = /(?:await\s+)?samples\s*\(/g;
+  let match;
+  
+  while ((match = samplesRegex.exec(code)) !== null) {
+    const startPos = match.index;
+    const afterSamples = startPos + match[0].length;
+    
+    // Track parentheses to find the matching closing paren
+    let depth = 1;
+    let pos = afterSamples;
+    let inString = false;
+    let stringChar = '';
+    let escaped = false;
+    
+    while (pos < code.length && depth > 0) {
+      const char = code[pos];
+      
+      if (escaped) {
+        escaped = false;
+        pos++;
+        continue;
+      }
+      
+      if (char === '\\') {
+        escaped = true;
+        pos++;
+        continue;
+      }
+      
+      if (!inString && (char === '"' || char === "'" || char === '`')) {
+        inString = true;
+        stringChar = char;
+      } else if (inString && char === stringChar) {
+        inString = false;
+        stringChar = '';
+      } else if (!inString) {
+        if (char === '(') {
+          depth++;
+        } else if (char === ')') {
+          depth--;
+        }
+      }
+      
+      pos++;
+    }
+    
+    if (depth === 0) {
+      // Found complete samples() call
+      const fullCall = code.substring(startPos, pos).trim();
+      samplesCalls.push({ call: fullCall, start: startPos, end: pos });
+    }
+  }
+  
+  // Execute all samples() calls first
+  if (samplesCalls.length > 0) {
+    console.log('Loading samples:', samplesCalls.map(s => s.call));
+    try {
+      for (const { call } of samplesCalls) {
+        // Remove 'await' if present since we're already in an async context
+        const callWithoutAwait = call.replace(/^await\s+/, '');
+        // Execute in global context with samples function available
+        const func = new Function('samples', `return ${callWithoutAwait}`);
+        await func(samples);
+      }
+      console.log('Samples loaded successfully');
+    } catch (error) {
+      console.error('Error loading samples:', error);
+      // Continue anyway - the samples might still work
+    }
+    
+    // Remove all samples() calls from code (in reverse order to preserve indices)
+    let cleanedCode = code;
+    for (let i = samplesCalls.length - 1; i >= 0; i--) {
+      const { start, end } = samplesCalls[i];
+      const before = cleanedCode.substring(0, start);
+      let after = cleanedCode.substring(end);
+      
+      // Remove trailing semicolon and whitespace
+      while (after.length > 0 && /[\s;]/.test(after[0])) {
+        after = after.substring(1);
+      }
+      
+      // Remove newline if the call was on its own line
+      if (after.length > 0 && after[0] === '\n') {
+        after = after.substring(1);
+      }
+      
+      cleanedCode = before + after;
+    }
+    
+    return cleanedCode.trim();
+  }
+  
+  // No samples calls found, return code as-is
+  return code.trim();
+};
+
+/**
  * Run/evaluate Strudel code
  * This will start or update the live coding session
  */
@@ -131,17 +241,27 @@ export const runCode = async (code: string) => {
     }
 
     // Remove comments and clean up the code
-    const cleanCode = trimmedCode
+    // Note: samples() calls are now allowed - they will add to the existing sample library
+    const codeWithoutComments = trimmedCode
       .split('\n')
       .filter(line => !line.trim().startsWith('//'))
-      .filter(line => {
-        if (line.trim().startsWith('samples(')) {
-          console.warn('Ignored samples() call in user code to prevent overwriting pre-loaded samples.');
-          return false;
-        }
-        return true;
-      })
       .join('\n')
+      .trim();
+
+    // Extract and execute samples() calls first, then get the remaining code
+    let cleanCode = await extractAndExecuteSamples(codeWithoutComments);
+
+    if (!cleanCode) {
+      // If only samples() calls were in the code, that's fine
+      console.log('Code only contained samples() calls - samples loaded');
+      return;
+    }
+
+    // Remove ._scope() calls - they're for visualization only, not audio
+    // This handles both single-line and multi-line ._scope() calls
+    cleanCode = cleanCode
+      .replace(/\._scope\(\)/g, '') // Remove ._scope() calls
+      .replace(/\n\s*\n\s*\n/g, '\n\n') // Clean up extra blank lines
       .trim();
 
     console.log('Evaluating code:', cleanCode);

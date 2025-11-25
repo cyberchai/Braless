@@ -1,10 +1,9 @@
-1. Rm dancing nano banana. Add another relevant logo
 
 2. Join Jam session
 
 3. Speed up LLM/NLP process Speeds
 
-4. Fix visualizer input
+4. Fix visualizer input -- blue wave not tracking ._scope() correctly to reflect the wave
 
 5. Login splash page and background dark dim - gray, not fuzzy black
 
@@ -14,3 +13,13 @@ Be a DJ with natural language and AI.
 AI agents to execute and mix the music for you.
 
 7. Make sure all libraries are working.
+
+
+
+____
+
+https://strudel.cc/learn/effects/
+
+$: n(run(16)).scale("c:minor:pentatonic").s("sawtooth").delay(.7).orbit(2)
+$: s("hh*16").orbit(3)
+$: s("bd:4!4").beat("0,4,8,11,14",16).duckorbit("2:3").duckattack(0.2).duckdepth(1)
