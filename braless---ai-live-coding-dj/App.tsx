@@ -56,6 +56,11 @@ const App: React.FC = () => {
   const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
   const [editingTrackName, setEditingTrackName] = useState('');
   
+  // Generate 6-digit jam code once per session
+  const [jamCode] = useState(() => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  });
+  
   const debounceRef = useRef<number | null>(null);
 
   // Firebase Auth state listener
@@ -754,8 +759,21 @@ const App: React.FC = () => {
       <div className="flex-1 flex flex-col min-h-0">
         {/* Top Bar (Visualizer + Global Controls) */}
         <div className="h-64 p-6 border-b border-zinc-900 bg-zinc-900/20 animate-slow-glow-top">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between items-center mb-4 relative">
              <h2 className="text-lg font-semibold">Main Stage</h2>
+             <div className="flex items-center gap-12 absolute left-1/2 transform -translate-x-1/2">
+               <button
+                 className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors flex items-center gap-2 shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:shadow-[0_0_20px_rgba(99,102,241,0.6)]"
+               >
+                 Join Jam
+               </button>
+               <div className="flex items-center gap-2 text-sm">
+                 <span className="text-zinc-400">This Jam:</span>
+                 <span className="font-mono font-semibold text-indigo-400 bg-zinc-800 px-3 py-1 rounded border border-zinc-700">
+                   {jamCode}
+                 </span>
+               </div>
+             </div>
              <div className="flex items-center gap-3">
                <AuthButton 
                  user={user} 

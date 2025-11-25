@@ -54,7 +54,7 @@ const BralessLogo: React.FC = () => {
           {/* We generate multiple bars across the width of the text area */}
           {[...Array(24)].map((_, i) => (
             <rect
-              key={i}
+              key={`bar-${i}-${isHovered ? 'hover' : 'normal'}`}
               className="equalizer-bar"
               x={50 + i * 25} // Spread across the text area with more left padding
               y="200" // Start at bottom
@@ -82,7 +82,7 @@ const BralessLogo: React.FC = () => {
         </text>
       </svg>
       
-      <div className={`subtitle ${isHovered ? 'visible' : ''}`}>
+      <div className="subtitle">
         AGENTIC DJS BEFORE GTA 6
       </div>
 

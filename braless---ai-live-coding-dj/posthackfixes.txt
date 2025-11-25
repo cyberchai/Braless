@@ -1,0 +1,16 @@
+1. Rm dancing nano banana. Add another relevant logo
+
+2. Join Jam session
+
+3. Speed up LLM/NLP process Speeds
+
+4. Fix visualizer input
+
+5. Login splash page and background dark dim - gray, not fuzzy black
+
+6. Maybe move control user input to the top bar
+
+Be a DJ with natural language and AI.
+AI agents to execute and mix the music for you.
+
+7. Make sure all libraries are working.
