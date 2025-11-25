@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { getFrequencyData, initAudioAnalyser } from '../services/audioAnalyser';
+import { parseRhythmFromCode, getBeatIntensity } from '../services/rhythmParser';
 
 interface VisualizerProps {
   isPlaying: boolean;
+  code: string;
 }
 
 interface WaveConfig {
@@ -16,7 +19,7 @@ interface WaveConfig {
   blendMode: 'normal' | 'multiply' | 'screen' | 'overlay' | 'lighten';
 }
 
-const Visualizer: React.FC<VisualizerProps> = ({ isPlaying }) => {
+const Visualizer: React.FC<VisualizerProps> = ({ isPlaying, code }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [time, setTime] = useState(0);
@@ -24,6 +27,25 @@ const Visualizer: React.FC<VisualizerProps> = ({ isPlaying }) => {
   const [activeAmplitude, setActiveAmplitude] = useState(0);
   const targetAmplitudeRef = useRef(105);
   const transitionSpeed = 0.05; // How fast the transition happens (0-1, higher = faster)
+  const [frequencyData, setFrequencyData] = useState({ bass: 0, mid: 0, treble: 0, overall: 0 });
+  const [beatIntensity, setBeatIntensity] = useState(0);
+  const rhythmPatternRef = useRef(parseRhythmFromCode(code));
+  const startTimeRef = useRef<number>(0);
+  
+  // Initialize audio analyser on mount
+  useEffect(() => {
+    initAudioAnalyser().catch(err => {
+      console.warn('Audio analyser init failed:', err);
+    });
+  }, []);
+
+  // Parse rhythm from code when code changes
+  useEffect(() => {
+    rhythmPatternRef.current = parseRhythmFromCode(code);
+    if (isPlaying) {
+      startTimeRef.current = performance.now() / 1000; // Reset start time when code changes
+    }
+  }, [code, isPlaying]);
 
   // Configuration as specified
   const config: WaveConfig = useMemo(() => ({
@@ -65,10 +87,57 @@ const Visualizer: React.FC<VisualizerProps> = ({ isPlaying }) => {
 
   // Animation loop - continue running even when stopped to allow flatline transition
   useEffect(() => {
+    if (isPlaying && startTimeRef.current === 0) {
+      startTimeRef.current = performance.now() / 1000;
+    }
+
     const animate = (t: number) => {
-      // Only advance time when playing, but keep animation running for smooth transitions
+      // Get frequency data from audio analyser
       if (isPlaying) {
-        setTime((prev) => prev + config.speed);
+        const freqData = getFrequencyData();
+        setFrequencyData(freqData);
+        
+        // Calculate beat position based on elapsed time and BPM
+        // Use a more stable timing approach
+        const currentTime = performance.now() / 1000;
+        const elapsedTime = currentTime - startTimeRef.current;
+        
+        // Add small offset to account for audio latency (typically 50-100ms)
+        const audioLatencyOffset = 0.08; // 80ms offset to sync with audio
+        const adjustedElapsedTime = elapsedTime + audioLatencyOffset;
+        
+        // Calculate beat duration - use pattern length to determine full cycle
+        // Most patterns are 1 bar (4 beats), so we'll use that as default
+        const beatsPerBar = 4;
+        const barDuration = (60 / rhythmPatternRef.current.bpm) * beatsPerBar; // Duration of one bar in seconds
+        const beatDuration = 60 / rhythmPatternRef.current.bpm; // Duration of one beat in seconds
+        
+        // Calculate position within the bar (0-1)
+        const barPosition = (adjustedElapsedTime % barDuration) / barDuration;
+        
+        // Get beat intensity (how close we are to a beat)
+        // Use a smoothed version to reduce jitter
+        const rawIntensity = getBeatIntensity(barPosition, rhythmPatternRef.current.beats);
+        
+        // Smooth the intensity to reduce "crazy" jumps
+        setBeatIntensity(prev => {
+          const smoothing = 0.3; // How much to blend with previous value (0-1)
+          return prev * smoothing + rawIntensity * (1 - smoothing);
+        });
+        
+        // Advance time based on overall energy (more energy = faster animation)
+        const speedMultiplier = 0.5 + (freqData.overall * 1.5); // 0.5x to 2x speed
+        setTime((prev) => prev + config.speed * speedMultiplier);
+      } else {
+        // When stopped, gradually reduce frequency data and beat intensity
+        setFrequencyData(prev => ({
+          bass: prev.bass * 0.95,
+          mid: prev.mid * 0.95,
+          treble: prev.treble * 0.95,
+          overall: prev.overall * 0.95
+        }));
+        setBeatIntensity(prev => prev * 0.95);
+        startTimeRef.current = 0; // Reset start time
       }
       
       // Smoothly interpolate active amplitude towards target
@@ -104,34 +173,80 @@ const Visualizer: React.FC<VisualizerProps> = ({ isPlaying }) => {
     const currentAmplitude = activeAmplitude;
     const amplitudeRatio = currentAmplitude / config.amplitude; // 0 to 1
 
+    // Map each layer to a different frequency band
+    // Layer 0: Rhythm (follows beat pattern from code)
+    // Layer 1: Mid (mid frequencies)
+    // Layer 2: Treble (high frequencies)
+    const frequencyBands = [
+      frequencyData.bass, // Layer 0 uses bass but also responds to rhythm
+      frequencyData.mid,
+      frequencyData.treble
+    ];
+
     for (let layer = 0; layer < layerCount; layer++) {
       let topPoints: string[] = [];
       let bottomPoints: string[] = [];
 
+      // Get the frequency response for this layer
+      const layerFrequency = frequencyBands[layer] || 0;
+      
+      // Layer 0 follows the rhythm/beat pattern
+      let rhythmMultiplier = 1;
+      let rhythmAmplitudeBoost = 1;
+      if (layer === 0) {
+        // Pulse on beats - more subtle response (reduced from 0.8/0.6 to 0.3/0.25)
+        rhythmMultiplier = 1 + (beatIntensity * 0.3); // 1x to 1.3x speed on beat (was 1.8x)
+        rhythmAmplitudeBoost = 1 + (beatIntensity * 0.25); // 1x to 1.25x amplitude on beat (was 1.6x)
+      }
+      
+      // Modulate speed based on frequency response and rhythm
       const layerSpeedMult = 0.5 + (layer * 0.4);
+      const frequencySpeedBoost = 1 + (layerFrequency * 0.5); // 1x to 1.5x speed boost
       const layerDir = layer % 2 === 0 ? 1 : -1;
-      const layerTime = time * layerSpeedMult * layerDir;
+      const layerTime = time * layerSpeedMult * layerDir * frequencySpeedBoost * rhythmMultiplier;
       const phaseOffset = layer * (Math.PI * 2 / 3) + 143;
+
+      // Modulate amplitude based on frequency response and rhythm
+      const frequencyAmplitudeMultiplier = 0.7 + (layerFrequency * 0.6); // 0.7x to 1.3x amplitude
+      const layerAmplitude = currentAmplitude * frequencyAmplitudeMultiplier * rhythmAmplitudeBoost;
 
       for (let i = 0; i <= resolution; i++) {
         const x = i * step;
         const waveX = (x / dimensions.width) * 10 * (config.frequency * 10);
 
-        // Primary Carrier Wave
-        const carrier = Math.sin(waveX + layerTime + phaseOffset);
+        // Primary Carrier Wave - add frequency-based and rhythm-based modulation
+        const frequencyModulation = layerFrequency * Math.sin(waveX * 0.5 + time * 3);
+        let rhythmModulation = 0;
+        if (layer === 0) {
+          // Layer 0 pulses with the beat - more subtle modulation (reduced from 0.4 to 0.2)
+          rhythmModulation = beatIntensity * Math.sin(waveX * 1.5 + time * 3) * 0.2;
+        }
+        const carrier = Math.sin(waveX + layerTime + phaseOffset + frequencyModulation * 0.3 + rhythmModulation);
 
-        // Secondary Harmonic
-        const harmonic = Math.sin(waveX * 2.3 - layerTime * 1.5 + layer) * 0.35;
+        // Secondary Harmonic - also respond to frequency and rhythm
+        const harmonicModulation = layerFrequency * Math.cos(waveX * 1.2 - time * 2);
+        let harmonicRhythmMod = 0;
+        if (layer === 0) {
+          // More subtle rhythm modulation (reduced from 0.3 to 0.15)
+          harmonicRhythmMod = beatIntensity * Math.cos(waveX * 1.2 - time * 2.5) * 0.15;
+        }
+        const harmonic = Math.sin(waveX * 2.3 - layerTime * 1.5 + layer + harmonicModulation * 0.2 + harmonicRhythmMod) * 0.35;
 
         // Combined vertical displacement signal
         const displacementSignal = carrier + harmonic;
 
-        // Apply active amplitude (smoothly transitions between 0 and full amplitude)
-        const currentSpineY = centerY + (displacementSignal * currentAmplitude * 0.55);
+        // Apply layer-specific amplitude (modulated by frequency response)
+        const currentSpineY = centerY + (displacementSignal * layerAmplitude * 0.55);
 
-        // Thickness calculation - also smoothly transitions
-        const baseThickness = currentAmplitude * 0.25;
-        const breathing = amplitudeRatio > 0.1 ? Math.cos(waveX * 0.8 + time * 2 + layer) * 0.15 : 0;
+        // Thickness calculation - respond to frequency and rhythm
+        const baseThickness = layerAmplitude * 0.25;
+        const frequencyBreathing = layerFrequency * Math.cos(waveX * 0.8 + time * 2 + layer) * 0.2;
+        let rhythmBreathing = 0;
+        if (layer === 0) {
+          // Layer 0 thickness pulses with beats - more subtle (reduced from 0.25 to 0.15)
+          rhythmBreathing = beatIntensity * Math.cos(waveX * 1.0 + time * 2.5) * 0.15;
+        }
+        const breathing = amplitudeRatio > 0.1 ? Math.cos(waveX * 0.8 + time * 2 + layer) * 0.15 + frequencyBreathing + rhythmBreathing : 0;
         const currentThickness = Math.max(1, baseThickness * (1 + breathing * amplitudeRatio));
 
         // Point generation
@@ -152,7 +267,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ isPlaying }) => {
       });
     }
     return generatedLayers;
-  }, [config, time, dimensions.width, dimensions.height, activeAmplitude]);
+  }, [config, time, dimensions.width, dimensions.height, activeAmplitude, frequencyData, beatIntensity]);
 
   // Create gradient definitions
   const gradients = useMemo(() => {
@@ -169,8 +284,8 @@ const Visualizer: React.FC<VisualizerProps> = ({ isPlaying }) => {
       className="w-full h-48 bg-zinc-900/50 rounded-lg overflow-hidden border border-zinc-800 shadow-inner relative shadow-[0_0_30px_rgba(139,92,246,0.2),0_0_15px_rgba(139,92,246,0.1)] ring-1 ring-purple-500/20"
     >
       <div className="absolute top-2 left-2 text-xs text-zinc-500 uppercase font-mono tracking-widest z-10">
-        Visualizer Output
-      </div>
+          Visualizer Output
+       </div>
       {dimensions.width > 0 && dimensions.height > 0 && (
         <svg 
           width={dimensions.width} 

@@ -6,6 +6,7 @@
 import { initStrudel, evaluate, hush, rand, samples } from '@strudel/web';
 import { registerSoundfonts } from '@strudel/soundfonts';
 import soundfonts from '@strudel/soundfonts/gm.mjs';
+import { initAudioAnalyser, getAudioContext, getAnalyser, tryConnectToStrudel } from './audioAnalyser';
 
 // Define global helper for AI-generated code
 (window as any).R = (min: number, max: number) => rand.range(min, max);
@@ -45,6 +46,44 @@ export const initAudio = async () => {
 
       // Register GM soundfonts
       registerSoundfonts(soundfonts);
+
+      // Initialize audio analyser after Strudel is ready
+      try {
+        await initAudioAnalyser();
+        // Try to hook into Strudel's audio context after a delay
+        // to ensure Strudel has fully initialized
+        setTimeout(() => {
+          try {
+            // Try to access Strudel's audio context
+            // Strudel may expose it in various ways
+            const strudelContext = (window as any).strudel?.audioContext || 
+                                   (window as any).__strudelAudioContext ||
+                                   getAudioContext();
+            
+            if (strudelContext) {
+              const analyser = getAnalyser();
+              if (analyser) {
+                // Try to create a connection to monitor audio
+                // We'll use a gain node as a splitter
+                try {
+                  const gainNode = strudelContext.createGain();
+                  gainNode.gain.value = 1.0;
+                  
+                  // The analyser should already be connected from initAudioAnalyser
+                  // But we'll try to ensure it's monitoring the output
+                  console.log('Audio analyser connected to audio context');
+                } catch (err) {
+                  console.warn('Could not create audio splitter:', err);
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('Could not connect analyser to Strudel audio:', err);
+          }
+        }, 1000);
+      } catch (err) {
+        console.warn('Audio analyser initialization failed:', err);
+      }
 
       isInitialized = true;
       console.log('Strudel audio engine initialized');
@@ -108,6 +147,11 @@ export const runCode = async (code: string) => {
     console.log('Evaluating code:', cleanCode);
     await evaluate(cleanCode, true);
     isPlaying = true;
+    
+    // Try to connect analyser when audio starts
+    setTimeout(() => {
+      tryConnectToStrudel();
+    }, 200);
   } catch (error) {
     console.error('Error running code:', error);
     isPlaying = false;

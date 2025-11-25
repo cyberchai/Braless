@@ -789,7 +789,7 @@ const App: React.FC = () => {
              </div>
           </div>
           <div className="relative h-48">
-            <Visualizer isPlaying={status === AudioStatus.PLAYING} />
+              <Visualizer isPlaying={status === AudioStatus.PLAYING} code={code} />
           </div>
         </div>
 
