@@ -21,6 +21,9 @@ const Visualizer: React.FC<VisualizerProps> = ({ isPlaying }) => {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [time, setTime] = useState(0);
   const requestRef = useRef<number>();
+  const [activeAmplitude, setActiveAmplitude] = useState(0);
+  const targetAmplitudeRef = useRef(105);
+  const transitionSpeed = 0.05; // How fast the transition happens (0-1, higher = faster)
 
   // Configuration as specified
   const config: WaveConfig = useMemo(() => ({
@@ -34,6 +37,11 @@ const Visualizer: React.FC<VisualizerProps> = ({ isPlaying }) => {
     opacity: 1.0,
     blendMode: 'screen',
   }), [isPlaying]);
+
+  // Update target amplitude when playing state changes
+  useEffect(() => {
+    targetAmplitudeRef.current = isPlaying ? 105 : 0;
+  }, [isPlaying]);
 
   // Update dimensions when container size changes
   useEffect(() => {
@@ -55,16 +63,27 @@ const Visualizer: React.FC<VisualizerProps> = ({ isPlaying }) => {
     return () => resizeObserver.disconnect();
   }, []);
 
-  // Animation loop
+  // Animation loop - continue running even when stopped to allow flatline transition
   useEffect(() => {
     const animate = (t: number) => {
-      setTime((prev) => prev + config.speed);
+      // Only advance time when playing, but keep animation running for smooth transitions
+      if (isPlaying) {
+        setTime((prev) => prev + config.speed);
+      }
+      
+      // Smoothly interpolate active amplitude towards target
+      setActiveAmplitude((prev) => {
+        const target = targetAmplitudeRef.current;
+        const diff = target - prev;
+        // Use smooth easing - the closer we get, the slower we approach
+        const easeFactor = Math.abs(diff) < 0.1 ? diff : diff * transitionSpeed;
+        return prev + easeFactor;
+      });
+      
       requestRef.current = requestAnimationFrame(animate);
     };
 
-    if (isPlaying && config.speed > 0) {
-      requestRef.current = requestAnimationFrame(animate);
-    }
+    requestRef.current = requestAnimationFrame(animate);
 
     return () => {
       if (requestRef.current) {
@@ -73,14 +92,17 @@ const Visualizer: React.FC<VisualizerProps> = ({ isPlaying }) => {
     };
   }, [config.speed, isPlaying]);
 
-  // Generate 3 layers of smooth paths
+  // Generate 3 layers of smooth paths with smooth amplitude transition
   const layers = useMemo(() => {
     const generatedLayers = [];
     const layerCount = 3;
     const centerY = dimensions.height / 2;
     const resolution = Math.max(50, config.spikeCount);
     const step = dimensions.width / resolution;
-    const spatialFactor = config.frequency * 80;
+
+    // Use activeAmplitude for smooth transitions (0 = flat, 105 = full waves)
+    const currentAmplitude = activeAmplitude;
+    const amplitudeRatio = currentAmplitude / config.amplitude; // 0 to 1
 
     for (let layer = 0; layer < layerCount; layer++) {
       let topPoints: string[] = [];
@@ -104,13 +126,13 @@ const Visualizer: React.FC<VisualizerProps> = ({ isPlaying }) => {
         // Combined vertical displacement signal
         const displacementSignal = carrier + harmonic;
 
-        // Apply Amplitude
-        const currentSpineY = centerY + (displacementSignal * config.amplitude * 0.55);
+        // Apply active amplitude (smoothly transitions between 0 and full amplitude)
+        const currentSpineY = centerY + (displacementSignal * currentAmplitude * 0.55);
 
-        // Thickness calculation
-        const baseThickness = config.amplitude * 0.25;
-        const breathing = Math.cos(waveX * 0.8 + time * 2 + layer) * 0.15;
-        const currentThickness = baseThickness * (1 + breathing);
+        // Thickness calculation - also smoothly transitions
+        const baseThickness = currentAmplitude * 0.25;
+        const breathing = amplitudeRatio > 0.1 ? Math.cos(waveX * 0.8 + time * 2 + layer) * 0.15 : 0;
+        const currentThickness = Math.max(1, baseThickness * (1 + breathing * amplitudeRatio));
 
         // Point generation
         const yTop = currentSpineY - currentThickness;
@@ -130,7 +152,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ isPlaying }) => {
       });
     }
     return generatedLayers;
-  }, [config, time, dimensions.width, dimensions.height]);
+  }, [config, time, dimensions.width, dimensions.height, activeAmplitude]);
 
   // Create gradient definitions
   const gradients = useMemo(() => {

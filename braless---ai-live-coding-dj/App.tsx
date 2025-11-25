@@ -758,9 +758,11 @@ const App: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-h-0">
         {/* Top Bar (Visualizer + Global Controls) */}
-        <div className="h-64 p-6 border-b border-zinc-900 bg-zinc-900/20 animate-slow-glow-top">
-          <div className="flex justify-between items-center mb-4 relative">
-             <h2 className="text-lg font-semibold">Main Stage</h2>
+        <div className="h-64 p-6 border-b border-zinc-900 bg-zinc-900/20 animate-slow-glow-top relative">
+          <div className="flex justify-between items-center mb-4 relative z-10">
+             <div className="flex items-center gap-4">
+               <h2 className="text-lg font-semibold">Main Stage</h2>
+             </div>
              <div className="flex items-center gap-12 absolute left-1/2 transform -translate-x-1/2">
                <button
                  className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors flex items-center gap-2 shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:shadow-[0_0_20px_rgba(99,102,241,0.6)]"
@@ -773,6 +775,9 @@ const App: React.FC = () => {
                    {jamCode}
                  </span>
                </div>
+               <div className="w-32 h-20 pointer-events-none">
+                 <DancingBanana isPlaying={status === AudioStatus.PLAYING} />
+               </div>
              </div>
              <div className="flex items-center gap-3">
                <AuthButton 
@@ -783,13 +788,8 @@ const App: React.FC = () => {
                />
              </div>
           </div>
-          <div className="grid grid-cols-3 gap-4 h-48">
-            <div className="col-span-2">
-              <Visualizer isPlaying={status === AudioStatus.PLAYING} />
-            </div>
-            <div className="bg-zinc-900/50 rounded-lg border border-zinc-800 flex items-center justify-center animate-slow-glow-yellow overflow-hidden">
-              <DancingBanana isPlaying={status === AudioStatus.PLAYING} />
-            </div>
+          <div className="relative h-48">
+            <Visualizer isPlaying={status === AudioStatus.PLAYING} />
           </div>
         </div>
 

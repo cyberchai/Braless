@@ -85,11 +85,8 @@ const DancingBanana: React.FC<DancingBananaProps> = ({ isPlaying }) => {
               `}
             </style>
           </defs>
-
-          {/* Background Floor */}
-          <rect x="0" y="150" width="300" height="50" fill="#eee" />
           
-          {/* DJNANA Text - Overlapping with floor */}
+          {/* DJNANA Text */}
           <text 
             x="150" 
             y="175" 
