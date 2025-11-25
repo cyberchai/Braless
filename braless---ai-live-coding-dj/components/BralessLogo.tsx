@@ -62,21 +62,12 @@ const BralessLogo: React.FC = () => {
         preserveAspectRatio="xMidYMid meet"
       >
         <defs>
-          {/* Vibrant Gradient for the equalizer bars */}
+          {/* Vibrant Gradient for the equalizer bars - matching visualizer colors */}
           <linearGradient id="soundGradient" x1="0%" y1="100%" x2="0%" y2="0%">
-            <stop offset="0%" stopColor="#FF00CC" />   {/* Neon Pink */}
-            <stop offset="50%" stopColor="#333399" />   {/* Deep Blurple */}
-            <stop offset="100%" stopColor="#00FFFF" />  {/* Cyan */}
+            <stop offset="0%" stopColor="#FF00CC" />   {/* Neon Pink - from warmColors */}
+            <stop offset="50%" stopColor="#9900FF" />   {/* Purple - from coolColors */}
+            <stop offset="100%" stopColor="#00CCFF" />  {/* Cyan - from coolColors */}
           </linearGradient>
-
-          {/* Glow Filter */}
-          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="3" result="coloredBlur" />
-            <feMerge>
-              <feMergeNode in="coloredBlur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
 
           {/* The Text Mask */}
           <mask id="textMask">
@@ -120,7 +111,6 @@ const BralessLogo: React.FC = () => {
           dy=".35em"
           textAnchor="middle"
           className="logo-stroke"
-          filter="url(#glow)"
         >
           BRALESS
         </text>
@@ -155,7 +145,6 @@ const BralessLogo: React.FC = () => {
           transform: scale(1.2);
           transform-origin: center;
           margin: 0 auto;
-          filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.4)) drop-shadow(0 0 12px rgba(139, 92, 246, 0.3));
         }
 
         .logo-text {
@@ -175,13 +164,13 @@ const BralessLogo: React.FC = () => {
           stroke-dasharray: 400;
           stroke-dashoffset: 400;
           animation: drawStroke 2s ease-out forwards;
-          opacity: 0.8;
+          opacity: 1.0;
         }
 
         .equalizer-bar {
           /* Play the settle animation once, keep final state */
           animation: equalize-settle 2.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-          opacity: 0.9;
+          opacity: 1.0;
         }
 
         @keyframes drawStroke {
@@ -189,7 +178,7 @@ const BralessLogo: React.FC = () => {
           20% { opacity: 1; }
           100% { 
             stroke-dashoffset: 0; 
-            opacity: 0.3; /* Fade outline slightly so the fill pops */
+            opacity: 1.0; /* Clean, full opacity like visualizer */
           }
         }
 
