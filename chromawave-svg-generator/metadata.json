@@ -1,0 +1,5 @@
+{
+  "name": "ChromaWave SVG Generator",
+  "description": "An interactive, animated SVG generator featuring symmetrical colorful waveforms. Use AI to remix styles and patterns.",
+  "requestFramePermissions": []
+}
