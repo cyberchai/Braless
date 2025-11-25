@@ -1,13 +1,57 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 const BralessLogo: React.FC = () => {
   const [isHovered, setIsHovered] = useState(false);
+  const [animationKey, setAnimationKey] = useState(Date.now());
+  const isAnimatingRef = useRef(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Animation duration: 2.5s + max delay (24 bars * 0.05s = 1.2s) = ~3.7s
+  const ANIMATION_DURATION = 3700;
+
+  const startAnimation = () => {
+    if (!isAnimatingRef.current) {
+      // Start new animation - use timestamp to ensure unique key
+      isAnimatingRef.current = true;
+      setAnimationKey(Date.now());
+      
+      // Clear any existing timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      // Clear animation flag after animation completes
+      timeoutRef.current = setTimeout(() => {
+        isAnimatingRef.current = false;
+        timeoutRef.current = null;
+      }, ANIMATION_DURATION);
+    }
+  };
+
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+    startAnimation();
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    // Don't clear timeout - let animation complete even if user unhovers
+  };
+
+  // Cleanup timeout only on component unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div 
       className="logo-container"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <svg
         width="100%"
@@ -54,7 +98,7 @@ const BralessLogo: React.FC = () => {
           {/* We generate multiple bars across the width of the text area */}
           {[...Array(24)].map((_, i) => (
             <rect
-              key={`bar-${i}-${isHovered ? 'hover' : 'normal'}`}
+              key={`bar-${i}-${animationKey}`}
               className="equalizer-bar"
               x={50 + i * 25} // Spread across the text area with more left padding
               y="200" // Start at bottom
