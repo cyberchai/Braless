@@ -83,5 +83,9 @@ s("bd,[~ <sd!3 sd(3,4,2)>],hh*8")
 .attack(1) // slowly fade in
 )
 .slow(3/2)`
+  },
+  {
+    name: 'Jazz Wash',
+    code: `sound("jazz:0 jazz:1 [jazz:4 jazz:2] jazz:3*2")`
   }
 ];
